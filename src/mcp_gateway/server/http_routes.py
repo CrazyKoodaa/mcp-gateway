@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
@@ -40,7 +41,7 @@ def _setup_health_routes(app: FastAPI, deps: ServerDependencies) -> None:
         summary="Health check",
         description="Returns health status of the gateway and all backends",
     )
-    async def health_check() -> dict[str, object]:
+    async def health_check() -> dict[str, Any]:
         """Health check endpoint."""
         backends: list[dict[str, object]] = []
         for name, backend in deps.backend_manager.backends.items():
@@ -65,7 +66,7 @@ def _setup_health_routes(app: FastAPI, deps: ServerDependencies) -> None:
             "healthy": True,
             "total_backends": len(backends),
             "connected_backends": sum(1 for b in backends if b["connected"]),
-            "total_tools": sum(b["tools"] for b in backends),  # type: ignore
+            "total_tools": int(sum(b["tools"] for b in backends)),
             "backends": backends,
         }
 
@@ -88,7 +89,7 @@ def _setup_health_routes(app: FastAPI, deps: ServerDependencies) -> None:
         tags=["health"],
         summary="Circuit breaker statistics",
     )
-    async def circuit_breaker_stats() -> dict[str, dict[str, object]]:
+    async def circuit_breaker_stats() -> dict[str, Any]:
         """Get circuit breaker statistics for all backends."""
         if deps.circuit_breaker_registry:
             return deps.circuit_breaker_registry.get_all_stats()
@@ -147,14 +148,14 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         tags=["config"],
         summary="List all servers",
     )
-    async def list_servers() -> dict[str, list[dict[str, object]]]:
+    async def list_servers() -> dict[str, list[dict[str, Any]]]:
         """List all configured MCP servers."""
         if not deps.config_manager:
             raise HTTPException(
                 status_code=503, detail="Config management not available"
             )
 
-        servers: list[dict[str, object]] = []
+        servers: list[dict[str, Any]] = []
         for name, server in deps.config_manager.gateway_config.servers.items():
             backend = deps.backend_manager.backends.get(name)
             available_tools: list[str] = []
@@ -180,7 +181,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         tags=["config"],
         summary="Get server tools",
     )
-    async def get_server_tools(name: str) -> dict[str, object]:
+    async def get_server_tools(name: str) -> dict[str, Any]:
         """Get list of tools available for a specific server."""
         backend = deps.backend_manager.backends.get(name)
         if not backend:
@@ -210,7 +211,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         tags=["config"],
         summary="Update server configuration",
     )
-    async def update_server(name: str, request: Request) -> dict[str, object]:
+    async def update_server(name: str, request: Request) -> dict[str, Any]:
         """Update server configuration with approval flow for sensitive paths."""
         if not deps.config_manager:
             raise HTTPException(
@@ -220,7 +221,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         from ..admin import validate_server_config
         from ..services import ApprovalResult
 
-        config: dict[str, object] = await request.json()
+        config: dict[str, Any] = await request.json()
         logger.info(
             f"Update server request for '{name}' with args: {config.get('args', [])}"
         )
@@ -233,7 +234,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         # Check if approval needed
         if deps.config_approval:
             current_server = deps.config_manager.gateway_config.servers.get(name)
-            original_config: dict[str, object] = {}
+            original_config: dict[str, Any] = {}
             if current_server:
                 original_config = {
                     "command": current_server.command,
@@ -302,7 +303,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         tags=["config"],
         summary="Create new server",
     )
-    async def create_server(request: Request) -> dict[str, object]:
+    async def create_server(request: Request) -> dict[str, Any]:
         """Create a new MCP server configuration."""
         if not deps.config_manager:
             raise HTTPException(
@@ -311,7 +312,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
 
         from ..admin import validate_server_config
 
-        data: dict[str, object] = await request.json()
+        data: dict[str, Any] = await request.json()
         name = data.get("name")
         config = data.get("config", {})
 
@@ -340,7 +341,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         tags=["config"],
         summary="Delete server",
     )
-    async def delete_server(name: str) -> dict[str, object]:
+    async def delete_server(name: str) -> dict[str, Any]:
         """Delete an MCP server configuration."""
         if not deps.config_manager:
             raise HTTPException(
@@ -358,7 +359,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         tags=["config"],
         summary="Reload configuration",
     )
-    async def reload_config() -> dict[str, object]:
+    async def reload_config() -> dict[str, Any]:
         """Reload configuration from disk."""
         if not deps.config_manager:
             raise HTTPException(
@@ -376,7 +377,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         tags=["config"],
         summary="List all backends",
     )
-    async def list_backends() -> dict[str, list[dict[str, object]]]:
+    async def list_backends() -> dict[str, list[dict[str, Any]]]:
         """List all backends with their connection status."""
         backends: list[dict[str, object]] = []
         for name, backend in deps.backend_manager.backends.items():
@@ -394,7 +395,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         tags=["config"],
         summary="Get supervision status",
     )
-    async def get_supervision() -> dict[str, object]:
+    async def get_supervision() -> dict[str, Any]:
         """Get process supervision status and statistics."""
         if not deps.supervisor:
             return {"enabled": False}
@@ -409,7 +410,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         tags=["config"],
         summary="Restart a backend",
     )
-    async def restart_backend(name: str) -> dict[str, object]:
+    async def restart_backend(name: str) -> dict[str, Any]:
         """Restart a specific backend."""
         if deps.supervisor:
             success = await deps.supervisor.restart_backend(name)
@@ -441,96 +442,230 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
-    # Access Control Stub Routes
+    # Access Control Routes
     @app.get(
         "/api/access/requests/pending",
         tags=["access-control"],
         summary="List pending access requests",
     )
-    async def list_pending_access_requests() -> dict[str, list]:
+    async def list_pending_access_requests() -> dict[str, list[Any]]:
         """List pending path access requests."""
-        return {"requests": []}
+        if not deps.access_control:
+            return {"requests": []}
+        
+        requests = deps.access_control.get_pending_requests()
+        return {
+            "requests": [
+                {
+                    "id": r.id,
+                    "code": r.code,
+                    "mcp_name": r.mcp_name,
+                    "path": r.path,
+                    "status": r.status.value,
+                    "created_at": r.created_at.isoformat(),
+                    "expires_at": r.expires_at.isoformat(),
+                }
+                for r in requests
+            ]
+        }
 
     @app.get(
         "/api/access/grants/active",
         tags=["access-control"],
         summary="List active access grants",
     )
-    async def list_active_access_grants() -> dict[str, list]:
+    async def list_active_access_grants() -> dict[str, list[Any]]:
         """List active path access grants."""
-        return {"grants": []}
+        if not deps.access_control:
+            return {"grants": []}
+        
+        grants = deps.access_control.get_active_grants()
+        return {
+            "grants": [
+                {
+                    "id": g.id,
+                    "request_id": g.request_id,
+                    "mcp_name": g.mcp_name,
+                    "path": g.path,
+                    "granted_at": g.granted_at.isoformat(),
+                    "expires_at": g.expires_at.isoformat(),
+                    "duration_minutes": g.duration_minutes,
+                }
+                for g in grants
+            ]
+        }
 
     @app.post(
         "/api/access/requests/{code}/approve",
         tags=["access-control"],
         summary="Approve an access request",
     )
-    async def approve_access_request(code: str) -> dict[str, object]:
+    async def approve_access_request(code: str, request: Request) -> dict[str, Any]:
         """Approve a path access request."""
-        raise HTTPException(
-            status_code=503, detail="Access control service not available"
+        if not deps.access_control:
+            raise HTTPException(
+                status_code=503, detail="Access control service not available"
+            )
+        
+        data: dict[str, Any] = await request.json() if await request.body() else {}
+        duration = data.get("duration_minutes", 1)
+        
+        success, message, grant = await deps.access_control.approve_request(
+            code=code,
+            duration_minutes=int(duration),
         )
+        
+        if not success:
+            raise HTTPException(status_code=400, detail=message)
+        
+        return {
+            "success": True,
+            "message": message,
+            "grant": {
+                "id": grant.id,
+                "mcp_name": grant.mcp_name,
+                "path": grant.path,
+                "expires_at": grant.expires_at.isoformat(),
+                "duration_minutes": grant.duration_minutes,
+            } if grant else None,
+        }
 
     @app.post(
         "/api/access/requests/{code}/deny",
         tags=["access-control"],
         summary="Deny an access request",
     )
-    async def deny_access_request(code: str) -> dict[str, object]:
+    async def deny_access_request(code: str) -> dict[str, Any]:
         """Deny a path access request."""
-        raise HTTPException(
-            status_code=503, detail="Access control service not available"
-        )
+        if not deps.access_control:
+            raise HTTPException(
+                status_code=503, detail="Access control service not available"
+            )
+        
+        success, message = await deps.access_control.deny_request(code)
+        
+        if not success:
+            raise HTTPException(status_code=400, detail=message)
+        
+        return {"success": True, "message": message}
 
     @app.delete(
         "/api/access/grants/{grant_id}",
         tags=["access-control"],
         summary="Revoke an access grant",
     )
-    async def revoke_access_grant(grant_id: str) -> dict[str, object]:
+    async def revoke_access_grant(grant_id: str) -> dict[str, Any]:
         """Revoke an active access grant."""
-        raise HTTPException(
-            status_code=503, detail="Access control service not available"
-        )
+        if not deps.access_control:
+            raise HTTPException(
+                status_code=503, detail="Access control service not available"
+            )
+        
+        success = await deps.access_control.revoke_grant(grant_id)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Grant not found")
+        
+        return {"success": True, "message": "Grant revoked successfully"}
 
-    # Additional Config Change Routes
+    # Config Change Routes (via access_control)
     @app.get(
         "/api/config-changes/grants",
         tags=["config"],
         summary="List active config change grants",
     )
-    async def list_config_change_grants_stub() -> dict[str, list]:
+    async def list_config_change_grants() -> dict[str, list[Any]]:
         """List active config change grants."""
-        return {"grants": []}
+        if not deps.access_control:
+            return {"grants": []}
+        
+        grants = deps.access_control.get_active_config_grants()
+        return {
+            "grants": [
+                {
+                    "id": g.id,
+                    "request_id": g.request_id,
+                    "server_name": g.server_name,
+                    "sensitive_path": g.sensitive_path,
+                    "granted_at": g.granted_at.isoformat(),
+                    "expires_at": g.expires_at.isoformat(),
+                    "duration_minutes": g.duration_minutes,
+                }
+                for g in grants
+            ]
+        }
 
     @app.post(
         "/api/config-changes/{code}/deny",
         tags=["config"],
         summary="Deny a config change request",
     )
-    async def deny_config_change_stub(code: str) -> dict[str, object]:
+    async def deny_config_change(code: str) -> dict[str, Any]:
         """Deny a config change request."""
-        raise HTTPException(status_code=503, detail="Approval service not available")
+        if not deps.access_control:
+            raise HTTPException(status_code=503, detail="Access control service not available")
+        
+        success, message = await deps.access_control.deny_config_change(code)
+        
+        if not success:
+            raise HTTPException(status_code=400, detail=message)
+        
+        return {"success": True, "message": message}
 
     @app.delete(
         "/api/config-changes/grants/{grant_id}",
         tags=["config"],
         summary="Revoke a config change grant",
     )
-    async def revoke_config_change_grant_stub(grant_id: str) -> dict[str, object]:
+    async def revoke_config_change_grant(grant_id: str) -> dict[str, Any]:
         """Revoke an active config change grant."""
-        return {"success": True, "message": f"Grant {grant_id} revoked"}
+        if not deps.access_control:
+            raise HTTPException(status_code=503, detail="Access control service not available")
+        
+        success, message = await deps.access_control.revoke_config_grant(grant_id)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail=message)
+        
+        return {"success": True, "message": message}
 
-    # SSE Events stub
+    # SSE Events endpoint for real-time access control notifications
     @app.get("/api/access/events")
     async def access_events_sse(request: Request) -> Response:
-        """SSE endpoint for access control events (stub)."""
-
-        async def event_stream():
-            # Send a dummy event every 30 seconds to keep connection alive
-            while True:
-                await asyncio.sleep(30)
-                yield b"data: {}\n\n"
+        """SSE endpoint for access control events."""
+        
+        async def event_stream() -> Any:  # type: ignore[return-value]
+            if not deps.access_control:
+                # No access control service - send keepalive only
+                while True:
+                    await asyncio.sleep(30)
+                    yield b"event: keepalive\ndata: {}\n\n"
+                return
+            
+            # Subscribe to notifications
+            queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+            
+            async def notification_handler(event_type: str, data: dict[str, Any]) -> None:
+                await queue.put({"type": event_type, "data": data})
+            
+            deps.access_control.register_notification_callback(notification_handler)
+            
+            try:
+                # Send initial connection event
+                yield b"event: connected\ndata: {\"status\": \"connected\"}\n\n"
+                
+                # Stream events
+                while True:
+                    try:
+                        event = await asyncio.wait_for(queue.get(), timeout=30)
+                        event_json = json.dumps(event)
+                        yield f"event: access_control\ndata: {event_json}\n\n".encode()
+                    except asyncio.TimeoutError:
+                        # Send keepalive
+                        yield b"event: keepalive\ndata: {}\n\n"
+            finally:
+                # Note: There's no unregister method, callbacks are cleaned up on disconnect
+                pass
 
         return StreamingResponse(
             event_stream(),
@@ -550,7 +685,7 @@ def _setup_approval_routes(app: FastAPI, deps: ServerDependencies) -> None:
         tags=["config"],
         summary="List pending config changes",
     )
-    async def list_pending_changes() -> dict[str, list[dict[str, object]]]:
+    async def list_pending_changes() -> dict[str, list[dict[str, Any]]]:
         """List pending config change requests."""
         if not deps.config_approval:
             logger.warning("Config approval service not available")
@@ -582,7 +717,7 @@ def _setup_approval_routes(app: FastAPI, deps: ServerDependencies) -> None:
         tags=["config"],
         summary="Approve a config change",
     )
-    async def approve_change(code: str, request: Request) -> dict[str, object]:
+    async def approve_change(code: str, request: Request) -> dict[str, Any]:
         """Approve a config change request."""
         if not deps.config_approval:
             raise HTTPException(
@@ -602,7 +737,7 @@ def _setup_approval_routes(app: FastAPI, deps: ServerDependencies) -> None:
                     detail=f"Rate limit exceeded. Retry after {limit_result.retry_after:.0f}s",
                 )
 
-        data: dict[str, object] = await request.json()
+        data: dict[str, Any] = await request.json()
         duration = data.get("duration_minutes", 1)
         approved_by = data.get("approved_by", "web")
 
@@ -639,11 +774,11 @@ def _setup_approval_routes(app: FastAPI, deps: ServerDependencies) -> None:
                         url=server_cfg.url,
                         type=server_cfg.type,
                         headers=server_cfg.headers,
-                        disabled_tools=server_cfg.disabled_tools,
+                  disabled_tools=server_cfg.disabled_tools,
                     )
 
                     # Restart in background to avoid blocking response
-                    async def do_restart():
+                    async def do_restart() -> None:  # type: ignore[no-untyped-def]
                         try:
                             # Add a small delay to let the API response complete first
                             await asyncio.sleep(0.5)
@@ -671,7 +806,7 @@ def _setup_approval_routes(app: FastAPI, deps: ServerDependencies) -> None:
                             )
 
                     # Schedule restart without awaiting (don't block response)
-                    asyncio.create_task(do_restart())
+                    asyncio.create_task(do_restart())  # type: ignore[misc]
             except Exception as e:
                 logger.error(f"Restart failed: {e}")
                 message += f" (Warning: restart failed: {e})"
