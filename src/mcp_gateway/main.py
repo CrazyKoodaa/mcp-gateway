@@ -339,11 +339,30 @@ async def main_async() -> int:
     # Create FastAPI app
     app = server.create_app(enable_access_control=True)
 
-    # Setup graceful shutdown
+    # Setup graceful shutdown with double-signal handling
     shutdown_event = asyncio.Event()
+    shutdown_requested = False
+    shutdown_start_time = None
+    FORCE_SHUTDOWN_AFTER = 10  # seconds
 
     def signal_handler(sig: int, frame: Any) -> None:
-        logger.info("Shutdown signal received", signal=sig)
+        nonlocal shutdown_requested, shutdown_start_time
+        import signal as sig_module
+        signal_name = sig_module.Signals(sig).name
+        
+        if shutdown_requested:
+            # Second signal - force immediate exit
+            logger.warning(f"Second {signal_name} received, forcing immediate exit")
+            _suppress_shutdown_errors()
+            sys.exit(130)
+        
+        # First signal - initiate graceful shutdown
+        shutdown_requested = True
+        shutdown_start_time = asyncio.get_event_loop().time()
+        logger.info(
+            f"{signal_name} received, initiating graceful shutdown",
+            force_after=f"{FORCE_SHUTDOWN_AFTER}s (press Ctrl+C again to force)"
+        )
         shutdown_event.set()
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -402,35 +421,59 @@ async def main_async() -> int:
     except Exception as e:
         logger.error(f"Unexpected error in server main loop: {e}", exc_info=True)
     finally:
-        # Cleanup - suppress errors during shutdown
-        try:
-            if hot_reload:
-                logger.info("Stopping hot reload...")
-                await hot_reload.stop()
-        except Exception:
-            pass
+        # Check if we should force shutdown due to timeout
+        if shutdown_requested and shutdown_start_time:
+            elapsed = asyncio.get_event_loop().time() - shutdown_start_time
+            if elapsed > FORCE_SHUTDOWN_AFTER:
+                logger.warning(f"Graceful shutdown timed out after {elapsed:.1f}s, forcing exit")
+                _suppress_shutdown_errors()
+                sys.exit(130)
+        
+        # Cleanup with timeout wrapper
+        async def cleanup_with_timeout():
+            """Run cleanup with a timeout to prevent hanging."""
+            try:
+                if hot_reload:
+                    logger.info("Stopping hot reload...")
+                    await asyncio.wait_for(hot_reload.stop(), timeout=3.0)
+            except asyncio.TimeoutError:
+                logger.warning("Hot reload stop timed out")
+            except Exception:
+                pass
 
-        try:
-            if deps.supervisor:
-                logger.info("Stopping process supervision...")
-                await deps.supervisor.stop_supervision()
-        except Exception:
-            pass
+            try:
+                if deps.supervisor:
+                    logger.info("Stopping process supervision...")
+                    await asyncio.wait_for(deps.supervisor.stop_supervision(), timeout=3.0)
+            except asyncio.TimeoutError:
+                logger.warning("Supervisor stop timed out")
+            except Exception:
+                pass
 
-        try:
-            if deps.access_control:
-                logger.info("Stopping access control...")
-                deps.access_control.stop()
-        except Exception:
-            pass
+            try:
+                if deps.access_control:
+                    logger.info("Stopping access control...")
+                    deps.access_control.stop()
+            except Exception:
+                pass
 
+            try:
+                logger.info("Disconnecting from backends...")
+                await asyncio.wait_for(deps.backend_manager.disconnect_all(), timeout=3.0)
+            except asyncio.TimeoutError:
+                logger.warning("Backend disconnect timed out")
+            except asyncio.CancelledError:
+                logger.debug("Backend disconnect cancelled")
+            except Exception:
+                pass
+        
+        # Run cleanup with overall timeout
         try:
-            logger.info("Disconnecting from backends...")
-            await deps.backend_manager.disconnect_all()
-        except asyncio.CancelledError:
-            logger.debug("Backend disconnect cancelled")
-        except Exception:
-            pass
+            await asyncio.wait_for(cleanup_with_timeout(), timeout=FORCE_SHUTDOWN_AFTER)
+        except asyncio.TimeoutError:
+            logger.warning(f"Overall cleanup timed out after {FORCE_SHUTDOWN_AFTER}s")
+        except Exception as e:
+            logger.error(f"Cleanup error: {e}")
 
         logger.info("Goodbye!")
         
