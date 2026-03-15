@@ -8,7 +8,44 @@ import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
+
+
+class AuditHandler(Protocol):
+    """Protocol for audit log handlers."""
+
+    def handle(self, event_data: dict[str, Any]) -> None:
+        """Handle an audit event."""
+        ...
+
+
+class FileAuditHandler:
+    """File-based audit log handler."""
+
+    def __init__(self, log_path: Path):
+        self.log_path = log_path
+        self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Create file handler
+        self._handler = logging.FileHandler(log_path, mode='a')
+        self._handler.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(message)s')
+        self._handler.setFormatter(formatter)
+        
+        # Logger for this handler
+        self._logger = logging.getLogger(f"mcp_gateway.audit.file.{log_path.stem}")
+        self._logger.addHandler(self._handler)
+        self._logger.setLevel(logging.INFO)
+        self._logger.propagate = False
+
+    def handle(self, event_data: dict[str, Any]) -> None:
+        """Write audit event to file."""
+        self._logger.info(json.dumps(event_data, separators=(',', ':')))
+
+    def close(self) -> None:
+        """Close the handler."""
+        self._handler.close()
+        self._logger.removeHandler(self._handler)
 
 # Audit logger - separate from application logs
 audit_logger = logging.getLogger("mcp_gateway.audit")

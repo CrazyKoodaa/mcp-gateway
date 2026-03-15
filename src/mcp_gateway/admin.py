@@ -5,6 +5,7 @@ Uses aiofiles for non-blocking file I/O operations.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import secrets
@@ -43,7 +44,7 @@ class ConfigManager:
     def __init__(self, config_path: Path, gateway_config: GatewayConfig):
         self.config_path = Path(config_path)
         self.gateway_config = gateway_config
-        self._lock = False
+        self._lock = asyncio.Lock()
 
     async def reload(self) -> GatewayConfig:
         """Reload configuration from disk."""
@@ -52,12 +53,7 @@ class ConfigManager:
 
     async def save(self) -> None:
         """Save current configuration to disk asynchronously."""
-        if self._lock:
-            raise RuntimeError("Config is locked by another operation")
-
-        try:
-            self._lock = True
-
+        async with self._lock:
             # Use aiofiles for async file I/O
             temp_path = self.config_path.with_suffix(".tmp")
 
@@ -70,9 +66,6 @@ class ConfigManager:
             temp_path.replace(self.config_path)
 
             logger.info(f"Configuration saved to {self.config_path}")
-
-        finally:
-            self._lock = False
 
     def _serialize_config(self) -> dict[str, Any]:
         """Serialize current config to dict for JSON."""
