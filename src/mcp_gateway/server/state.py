@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from ..config import GatewayConfig
     from ..metrics import MetricsCollector
     from ..rate_limiter import MemoryRateLimiter
+    from ..access_control import AccessControlManager
     from ..services import AuditService, ConfigApprovalService, PathSecurityService
     from ..supervisor import ProcessSupervisor
 
@@ -65,6 +66,7 @@ class ServerDependencies:
     supervisor: ProcessSupervisor | None = None
     audit_service: AuditService | None = None
     path_security: PathSecurityService | None = None
+    access_control: AccessControlManager | None = None
     config_approval: ConfigApprovalService | None = None
     rate_limiter: MemoryRateLimiter | None = None
     circuit_breaker_registry: CircuitBreakerRegistry = field(

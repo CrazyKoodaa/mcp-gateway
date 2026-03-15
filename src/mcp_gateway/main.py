@@ -17,17 +17,27 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from fastapi.templating import Jinja2Templates
+
 from .admin import ConfigManager
+from .auth import AuthConfig, AuthMiddleware
 from .backends import BackendManager
+from .circuit_breaker import CircuitBreakerRegistry
 from .config import GatewayConfig, load_config
 from .hot_reload import HotReloadManager
 
 # Get structured logger
 from .logging_config import get_logger, setup_structured_logging
+from .metrics import MetricsCollector
 from .server import McpGatewayServer, ServerDependencies
+from .access_control import AccessControlManager
+from .services import AuditService, ConfigApprovalService, PathSecurityService
 from .supervisor import ProcessSupervisor, SupervisionConfig
 
 logger = get_logger(__name__)
+
+# Template directory
+TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 
 def setup_logging(log_level: str = "INFO") -> None:
@@ -102,12 +112,25 @@ async def create_dependencies(
     config: GatewayConfig,
     config_path: Path,
     args: argparse.Namespace,
+    enable_audit_logging: bool = True,
 ) -> ServerDependencies:
     """Create all server dependencies with explicit injection.
 
-    This function replaces the global app.state pattern with proper
-    dependency injection.
+    This is the SINGLE SOURCE OF TRUTH for dependency initialization.
+    All services are created here and injected into ServerDependencies.
+
+    Args:
+        config: Gateway configuration
+        config_path: Path to config file
+        args: Command line arguments
+        enable_audit_logging: Whether to enable audit logging
+
+    Returns:
+        ServerDependencies container with all initialized services
     """
+    # Initialize circuit breaker registry
+    circuit_breaker_registry = CircuitBreakerRegistry()
+
     # Create config manager for persistence
     config_manager = ConfigManager(config_path, config)
 
@@ -137,12 +160,55 @@ async def create_dependencies(
         supervisor = ProcessSupervisor(backend_manager, supervision_config)
         await supervisor.start_supervision(config.servers)
 
+    # Initialize audit service with file handler if enabled
+    audit_handlers = []
+    if enable_audit_logging:
+        from .audit import FileAuditHandler
+        audit_log_path = Path.cwd() / "logs" / "audit.log"
+        audit_log_path.parent.mkdir(parents=True, exist_ok=True)
+        audit_handlers.append(FileAuditHandler(audit_log_path))
+    audit_service = AuditService(handlers=audit_handlers)
+
+    # Initialize security services
+    path_security = PathSecurityService()
+    config_approval = ConfigApprovalService(
+        audit_service=audit_service,
+        path_security=path_security,
+    )
+    access_control = AccessControlManager()
+    access_control.start()
+
+    # Initialize auth middleware if API key or bearer token is configured
+    auth: AuthMiddleware | None = None
+    if config.gateway.api_key or config.gateway.bearer_token:
+        auth_config = AuthConfig(
+            api_key=config.gateway.api_key,
+            bearer_token=config.gateway.bearer_token,
+            exclude_paths=config.gateway.auth_exclude_paths,
+        )
+        auth = AuthMiddleware(config=auth_config)
+
+    # Initialize metrics collector
+    metrics = MetricsCollector()
+
+    # Initialize templates
+    templates = Jinja2Templates(directory=str(TEMPLATE_DIR)) if TEMPLATE_DIR.exists() else None
+
     # Create dependencies container
     deps = ServerDependencies(
         config=config,
         backend_manager=backend_manager,
         config_manager=config_manager,
         supervisor=supervisor,
+        audit_service=audit_service,
+        path_security=path_security,
+        access_control=access_control,
+        config_approval=config_approval,
+        rate_limiter=None,  # Initialized in lifespan
+        circuit_breaker_registry=circuit_breaker_registry,
+        metrics=metrics,
+        auth=auth,
+        templates=templates,
     )
 
     return deps
@@ -255,17 +321,10 @@ async def main_async() -> int:
         logger.info("Hot reload enabled", path=str(config_path))
 
     # Create server with explicit dependencies (no global state)
-    server = McpGatewayServer(
-        dependencies=deps,
-        enable_access_control=True,
-        audit_log_path=Path.cwd() / "logs" / "audit.log",
-    )
+    server = McpGatewayServer(dependencies=deps)
 
-    # Sync tools to MCP server (now that backends are connected)
-    server._sync_tools_to_mcp()
-
-    # Update reload callback reference in server
-    # This is a circular dependency we need to resolve
+    # Create FastAPI app
+    app = server.create_app(enable_access_control=True)
 
     # Setup graceful shutdown
     shutdown_event = asyncio.Event()
@@ -277,47 +336,47 @@ async def main_async() -> int:
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    # Run server with MCP lifespan
+    # Run server with uvicorn
     try:
-        # Use AsyncExitStack to manage multiple async contexts
-        import contextlib
+        import uvicorn
 
-        async with contextlib.AsyncExitStack() as stack:
-            # Start MCP session manager if available
-            await stack.enter_async_context(server.mcp_lifespan())
-            logger.info("MCP protocol handlers initialized")
+        config_uvicorn = uvicorn.Config(
+            app,
+            host=config.host,
+            port=config.port,
+            log_level=config.log_level.lower(),
+        )
+        uvicorn_server = uvicorn.Server(config_uvicorn)
 
-            # Create server task
-            server_task = asyncio.create_task(server.run())
+        # Run server in a task
+        server_task = asyncio.create_task(uvicorn_server.serve())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
 
-            # Wait for shutdown signal or server failure
-            shutdown_task = asyncio.create_task(shutdown_event.wait())
+        done, pending = await asyncio.wait(
+            [server_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
 
-            done, pending = await asyncio.wait(
-                [server_task, shutdown_task],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-
-            # Check which task completed
-            for task in done:
-                if task == server_task:
-                    try:
-                        result = task.result()
-                        logger.info(f"Server task completed with result: {result}")
-                    except asyncio.CancelledError:
-                        logger.info("Server task was cancelled")
-                    except Exception as e:
-                        logger.error(f"Server task failed with exception: {e}", exc_info=True)
-                elif task == shutdown_task:
-                    logger.info("Shutdown event was set by signal")
-
-            # Cancel remaining tasks
-            for task in pending:
-                task.cancel()
+        # Check which task completed
+        for task in done:
+            if task == server_task:
                 try:
-                    await task
+                    result = task.result()
+                    logger.info(f"Server task completed with result: {result}")
                 except asyncio.CancelledError:
-                    pass
+                    logger.info("Server task was cancelled")
+                except Exception as e:
+                    logger.error(f"Server task failed with exception: {e}", exc_info=True)
+            elif task == shutdown_task:
+                logger.info("Shutdown event was set by signal")
+
+        # Cancel remaining tasks
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     except asyncio.CancelledError:
         logger.info("Main loop received CancelledError")
@@ -336,6 +395,13 @@ async def main_async() -> int:
             if deps.supervisor:
                 logger.info("Stopping process supervision...")
                 await deps.supervisor.stop_supervision()
+        except Exception:
+            pass
+
+        try:
+            if deps.access_control:
+                logger.info("Stopping access control...")
+                deps.access_control.stop()
         except Exception:
             pass
 
