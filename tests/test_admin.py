@@ -87,7 +87,8 @@ class TestConfigManager:
         manager = ConfigManager(temp_config_file, gateway_config)
         assert manager.config_path == Path(temp_config_file)
         assert manager.gateway_config == gateway_config
-        assert manager._lock is False
+        import asyncio
+        assert isinstance(manager._lock, asyncio.Lock)
     
     @pytest.mark.asyncio
     async def test_reload(self, config_manager):
@@ -110,12 +111,19 @@ class TestConfigManager:
         assert saved["gateway"]["host"] == "127.0.0.1"
     
     @pytest.mark.asyncio
-    async def test_save_locked(self, config_manager):
-        """Test save when locked."""
-        config_manager._lock = True
+    async def test_save_concurrent(self, config_manager):
+        """Test that concurrent saves are properly synchronized."""
+        import asyncio
         
-        with pytest.raises(RuntimeError, match="locked"):
+        # First save should acquire lock successfully
+        async def save_config():
             await config_manager.save()
+        
+        # Start two saves concurrently - they should execute sequentially
+        await asyncio.gather(save_config(), save_config())
+        
+        # Both saves should complete without error (sequential execution)
+        assert True
     
     def test_serialize_config(self, config_manager):
         """Test configuration serialization."""

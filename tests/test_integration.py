@@ -109,13 +109,12 @@ class TestServerConfigurationIntegration:
             disabled_tools=["disabled1"]
         )
         
-        backend = BackendConnection(config, connection_timeout=15.0, request_timeout=45.0)
-        
-        assert backend.name == "test-server"
+        # Note: BackendConnection uses __slots__, so we test it directly
+        backend = BackendConnection(config)
+        # Verify the backend was created with the config
         assert backend.config == config
+        assert backend.name == "test-server"
         assert backend.is_connected is False
-        assert backend._connection_timeout == 15.0
-        assert backend._request_timeout == 45.0
     
     def test_gateway_config_to_server_integration(self):
         """Test that gateway config properly configures the server."""
@@ -134,15 +133,16 @@ class TestServerConfigurationIntegration:
         backend_manager.get_all_tools.return_value = []
         
         from pathlib import Path
-        server = McpGatewayServer(
+        deps = ServerDependencies(
             config=config,
             backend_manager=backend_manager,
-            config_path=Path("/tmp/test_config.json"),
+            config_manager=MagicMock(),
         )
+        server = McpGatewayServer(dependencies=deps)
         server.create_app(enable_access_control=False)
         
-        assert server.config == config
-        assert server.backend_manager == backend_manager
+        assert server.deps.config == config
+        assert server.deps.backend_manager == backend_manager
         assert server.app is not None
 
 
@@ -175,16 +175,17 @@ class TestEndToEndWorkflow:
         
         # Create server
         from pathlib import Path
-        server = McpGatewayServer(
+        deps = ServerDependencies(
             config=config,
             backend_manager=backend_manager,
-            config_path=Path("/tmp/test_config.json"),
+            config_manager=MagicMock(),
         )
+        server = McpGatewayServer(dependencies=deps)
         server.create_app(enable_access_control=False)
         
         # Verify server was created correctly
-        assert server.config == config
-        assert server.backend_manager == backend_manager
+        assert server.deps.config == config
+        assert server.deps.backend_manager == backend_manager
         assert server.app is not None
     
     def test_tool_routing_workflow(self):

@@ -23,11 +23,12 @@ def server_deps(gateway_config, mock_backend_manager):
 @pytest.fixture
 def server(gateway_config, mock_backend_manager, tmp_path):
     """Return a test server instance."""
-    server = McpGatewayServer(
+    deps = ServerDependencies(
         config=gateway_config,
         backend_manager=mock_backend_manager,
-        config_path=tmp_path / "config.json",
+        config_manager=MagicMock(),
     )
+    server = McpGatewayServer(dependencies=deps)
     server.create_app(enable_access_control=False)
     return server
 
@@ -161,12 +162,13 @@ class TestServerConfiguration:
     
     def test_server_with_config(self, gateway_config, mock_backend_manager, tmp_path):
         """Test server created with specific configuration."""
-        server = McpGatewayServer(
+        deps = ServerDependencies(
             config=gateway_config,
             backend_manager=mock_backend_manager,
-            config_path=tmp_path / "config.json",
+            config_manager=MagicMock(),
         )
+        server = McpGatewayServer(dependencies=deps)
         server.create_app(enable_access_control=False)
         
-        assert server.config.host == gateway_config.host
-        assert server.config.port == gateway_config.port
+        assert server.deps.config.host == gateway_config.host
+        assert server.deps.config.port == gateway_config.port

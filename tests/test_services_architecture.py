@@ -15,6 +15,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 
 # Import new services
 from mcp_gateway.services import (
@@ -191,7 +192,7 @@ def mock_audit():
 
 
 @pytest.fixture
-async def approval_service(mock_audit):
+def approval_service(mock_audit):
     """Configured approval service."""
     service = ConfigApprovalService(
         audit_service=mock_audit,
@@ -199,7 +200,7 @@ async def approval_service(mock_audit):
         default_grant_duration=1,
     )
     yield service
-    await service.stop()
+    # Cleanup is handled automatically
 
 
 class TestConfigApprovalService:

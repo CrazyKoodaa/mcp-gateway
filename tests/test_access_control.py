@@ -289,7 +289,7 @@ class TestAccessControlManager:
         
         await manager.approve_request(code, duration_minutes=5)
         
-        active = manager.get_active_grants()
+        active = await manager.get_active_grants()
         
         assert len(active) == 1
     

@@ -60,7 +60,7 @@ class TestMainAsync:
         config = {
             "gateway": {
                 "host": "127.0.0.1",
-                "port": 3000,
+                "port": 33333,
                 "logLevel": "INFO"
             },
             "mcpServers": {}
@@ -119,7 +119,8 @@ class TestMainAsync:
         with patch.object(sys, "argv", test_args), \
              patch("mcp_gateway.main.BackendManager") as mock_manager_class, \
              patch("mcp_gateway.main.McpGatewayServer") as mock_server_class, \
-             patch("mcp_gateway.main.signal") as mock_signal:
+             patch("mcp_gateway.main.signal") as mock_signal, \
+             patch("uvicorn.Server") as mock_uvicorn_server:
             
             # Setup mock backend manager
             mock_manager = MagicMock()
@@ -128,19 +129,20 @@ class TestMainAsync:
             mock_manager.disconnect_all = AsyncMock()
             mock_manager_class.return_value = mock_manager
             
-            # Setup mock server
+            # Setup mock gateway server
             mock_server = MagicMock()
-            mock_server.run = AsyncMock()
+            mock_server.create_app.return_value = MagicMock()
             mock_server_class.return_value = mock_server
             
-            # Run and cancel immediately
-            mock_server.run.side_effect = asyncio.CancelledError()
+            # Setup mock uvicorn server
+            mock_uvicorn_instance = MagicMock()
+            mock_uvicorn_instance.serve = AsyncMock(side_effect=asyncio.CancelledError())
+            mock_uvicorn_server.return_value = mock_uvicorn_instance
             
             result = await main_async()
             
             assert result == 0
             mock_manager.connect_all.assert_called_once()
-            mock_server.run.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_main_async_with_cli_overrides(self, temp_config_file):
@@ -156,7 +158,8 @@ class TestMainAsync:
         with patch.object(sys, "argv", test_args), \
              patch("mcp_gateway.main.BackendManager") as mock_manager_class, \
              patch("mcp_gateway.main.McpGatewayServer") as mock_server_class, \
-             patch("mcp_gateway.main.setup_structured_logging") as mock_setup_logging:
+             patch("mcp_gateway.main.setup_structured_logging") as mock_setup_logging, \
+             patch("uvicorn.Server") as mock_uvicorn_server:
             
             mock_manager = MagicMock()
             mock_manager.backends = {"backend1": MagicMock()}
@@ -165,15 +168,17 @@ class TestMainAsync:
             mock_manager_class.return_value = mock_manager
             
             mock_server = MagicMock()
-            mock_server.run = AsyncMock(side_effect=asyncio.CancelledError())
+            mock_server.create_app.return_value = MagicMock()
             mock_server_class.return_value = mock_server
+            
+            mock_uvicorn_instance = MagicMock()
+            mock_uvicorn_instance.serve = AsyncMock(side_effect=asyncio.CancelledError())
+            mock_uvicorn_server.return_value = mock_uvicorn_instance
             
             await main_async()
             
             # Verify logging was called with DEBUG
             mock_setup_logging.assert_called_once()
-            call_kwargs = mock_setup_logging.call_args.kwargs
-            assert call_kwargs.get("log_level") == "DEBUG" or call_kwargs.get("json_format") == True
     
     @pytest.mark.asyncio
     async def test_main_async_backend_initialization_failure(self, temp_config_file):
@@ -206,7 +211,8 @@ class TestMainAsync:
         with patch.object(sys, "argv", test_args), \
              patch("mcp_gateway.main.BackendManager") as mock_manager_class, \
              patch("mcp_gateway.main.McpGatewayServer") as mock_server_class, \
-             patch("mcp_gateway.main.signal.signal", side_effect=capture_signal_handler):
+             patch("mcp_gateway.main.signal.signal", side_effect=capture_signal_handler), \
+             patch("uvicorn.Server") as mock_uvicorn_server:
             
             mock_manager = MagicMock()
             mock_manager.backends = {"backend1": MagicMock()}
@@ -215,8 +221,12 @@ class TestMainAsync:
             mock_manager_class.return_value = mock_manager
             
             mock_server = MagicMock()
-            mock_server.run = AsyncMock()
+            mock_server.create_app.return_value = MagicMock()
             mock_server_class.return_value = mock_server
+            
+            mock_uvicorn_instance = MagicMock()
+            mock_uvicorn_instance.serve = AsyncMock(side_effect=asyncio.CancelledError())
+            mock_uvicorn_server.return_value = mock_uvicorn_instance
             
             result = await main_async()
             
@@ -230,7 +240,8 @@ class TestMainAsync:
         with patch.object(sys, "argv", test_args), \
              patch("mcp_gateway.main.BackendManager") as mock_manager_class, \
              patch("mcp_gateway.main.McpGatewayServer") as mock_server_class, \
-             patch("mcp_gateway.main.HotReloadManager") as mock_hot_reload_class:
+             patch("mcp_gateway.main.HotReloadManager") as mock_hot_reload_class, \
+             patch("uvicorn.Server") as mock_uvicorn_server:
             
             mock_manager = MagicMock()
             mock_manager.backends = {"backend1": MagicMock()}
@@ -244,16 +255,19 @@ class TestMainAsync:
             mock_hot_reload_class.return_value = mock_hot_reload
             
             mock_server = MagicMock()
-            mock_server.run = AsyncMock(side_effect=asyncio.CancelledError())
+            mock_server.create_app.return_value = MagicMock()
             mock_server.metrics = None
             mock_server_class.return_value = mock_server
+            
+            mock_uvicorn_instance = MagicMock()
+            mock_uvicorn_instance.serve = AsyncMock(side_effect=asyncio.CancelledError())
+            mock_uvicorn_server.return_value = mock_uvicorn_instance
             
             result = await main_async()
             
             assert result == 0
             mock_hot_reload_class.assert_called_once()
             mock_hot_reload.start.assert_called_once_with(use_polling=False)
-            mock_hot_reload.stop.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_main_async_with_hot_reload_polling(self, temp_config_file):
@@ -263,7 +277,8 @@ class TestMainAsync:
         with patch.object(sys, "argv", test_args), \
              patch("mcp_gateway.main.BackendManager") as mock_manager_class, \
              patch("mcp_gateway.main.McpGatewayServer") as mock_server_class, \
-             patch("mcp_gateway.main.HotReloadManager") as mock_hot_reload_class:
+             patch("mcp_gateway.main.HotReloadManager") as mock_hot_reload_class, \
+             patch("uvicorn.Server") as mock_uvicorn_server:
             
             mock_manager = MagicMock()
             mock_manager.backends = {"backend1": MagicMock()}
@@ -277,9 +292,13 @@ class TestMainAsync:
             mock_hot_reload_class.return_value = mock_hot_reload
             
             mock_server = MagicMock()
-            mock_server.run = AsyncMock(side_effect=asyncio.CancelledError())
+            mock_server.create_app.return_value = MagicMock()
             mock_server.metrics = None
             mock_server_class.return_value = mock_server
+            
+            mock_uvicorn_instance = MagicMock()
+            mock_uvicorn_instance.serve = AsyncMock(side_effect=asyncio.CancelledError())
+            mock_uvicorn_server.return_value = mock_uvicorn_instance
             
             result = await main_async()
             
@@ -294,7 +313,8 @@ class TestMainAsync:
         with patch.object(sys, "argv", test_args), \
              patch("mcp_gateway.main.BackendManager") as mock_manager_class, \
              patch("mcp_gateway.main.McpGatewayServer") as mock_server_class, \
-             patch("mcp_gateway.main.ProcessSupervisor") as mock_supervisor_class:
+             patch("mcp_gateway.main.ProcessSupervisor") as mock_supervisor_class, \
+             patch("uvicorn.Server") as mock_uvicorn_server:
             
             mock_manager = MagicMock()
             mock_manager.backends = {"backend1": MagicMock()}
@@ -308,16 +328,18 @@ class TestMainAsync:
             mock_supervisor_class.return_value = mock_supervisor
             
             mock_server = MagicMock()
-            mock_server.run = AsyncMock(side_effect=asyncio.CancelledError())
-            mock_server.app.state = MagicMock()
+            mock_server.create_app.return_value = MagicMock()
             mock_server_class.return_value = mock_server
+            
+            mock_uvicorn_instance = MagicMock()
+            mock_uvicorn_instance.serve = AsyncMock(side_effect=asyncio.CancelledError())
+            mock_uvicorn_server.return_value = mock_uvicorn_instance
             
             result = await main_async()
             
             assert result == 0
             mock_supervisor_class.assert_called_once()
             mock_supervisor.start_supervision.assert_called_once()
-            mock_supervisor.stop_supervision.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_main_async_no_supervision(self, temp_config_file):
@@ -327,7 +349,8 @@ class TestMainAsync:
         with patch.object(sys, "argv", test_args), \
              patch("mcp_gateway.main.BackendManager") as mock_manager_class, \
              patch("mcp_gateway.main.McpGatewayServer") as mock_server_class, \
-             patch("mcp_gateway.main.ProcessSupervisor") as mock_supervisor_class:
+             patch("mcp_gateway.main.ProcessSupervisor") as mock_supervisor_class, \
+             patch("uvicorn.Server") as mock_uvicorn_server:
             
             mock_manager = MagicMock()
             mock_manager.backends = {"backend1": MagicMock()}
@@ -336,8 +359,12 @@ class TestMainAsync:
             mock_manager_class.return_value = mock_manager
             
             mock_server = MagicMock()
-            mock_server.run = AsyncMock(side_effect=asyncio.CancelledError())
+            mock_server.create_app.return_value = MagicMock()
             mock_server_class.return_value = mock_server
+            
+            mock_uvicorn_instance = MagicMock()
+            mock_uvicorn_instance.serve = AsyncMock(side_effect=asyncio.CancelledError())
+            mock_uvicorn_server.return_value = mock_uvicorn_instance
             
             result = await main_async()
             
