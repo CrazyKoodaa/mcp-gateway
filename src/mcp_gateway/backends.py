@@ -27,65 +27,6 @@ DEFAULT_CONNECTION_TIMEOUT: float = 30.0
 DEFAULT_REQUEST_TIMEOUT: float = 60.0
 
 
-class ToolMapping:
-    """Thread-safe tool mapping container."""
-
-    __slots__ = ("_mapping", "_lock")
-
-    def __init__(self) -> None:
-        self._mapping: dict[str, str] = {}  # tool_name -> backend_name
-        self._lock = asyncio.Lock()
-
-    async def get(self, key: str) -> str | None:
-        """Get backend name for a tool."""
-        async with self._lock:
-            return self._mapping.get(key)
-
-    async def update_for_backend(
-        self,
-        backend_name: str,
-        tools: list[Tool],
-        separator: str
-    ) -> list[str]:
-        """Update mappings for a backend atomically.
-
-        Returns list of conflicting tool names.
-        """
-        conflicts: list[str] = []
-        async with self._lock:
-            # Remove old mappings for this backend
-            self._mapping = {
-                k: v for k, v in self._mapping.items()
-                if v != backend_name
-            }
-
-            # Add new mappings
-            for tool in tools:
-                namespaced_name = f"{backend_name}{separator}{tool.name}"
-                if namespaced_name in self._mapping:
-                    conflicts.append(namespaced_name)
-                self._mapping[namespaced_name] = backend_name
-
-            return conflicts
-
-    async def remove_backend(self, backend_name: str) -> None:
-        """Remove all mappings for a backend."""
-        async with self._lock:
-            self._mapping = {
-                k: v for k, v in self._mapping.items()
-                if v != backend_name
-            }
-
-    async def clear(self) -> None:
-        """Clear all mappings."""
-        async with self._lock:
-            self._mapping.clear()
-
-    def get_snapshot(self) -> dict[str, str]:
-        """Get a snapshot of current mappings (for read-only use)."""
-        return self._mapping.copy()
-
-
 class BackendConnection:
     """Manages connection to a single MCP backend server."""
 
@@ -128,32 +69,47 @@ class BackendConnection:
     async def connect(self) -> None:
         """Establish connection to the backend server."""
         logger.info(
-            f"Connecting to backend: {self.name} ({self.config.transport_type})"
+            f"[CONNECTION] Initiating connection to backend: {self.name} "
+            f"(transport: {self.config.transport_type})"
         )
 
         self._exit_stack = AsyncExitStack()
 
         try:
+            logger.debug(
+                f"[CONNECTION] Starting transport-specific connection for {self.name}"
+            )
             if self.config.is_stdio:
                 await self._connect_stdio()
+                logger.info(f"[CONNECTION] Stdio transport established for {self.name}")
             else:
                 await self._connect_remote()
+                logger.info(f"[CONNECTION] Remote transport established for {self.name}")
 
             # Initialize session
             if self.session:
+                logger.debug(f"[CONNECTION] Initializing MCP session for {self.name}")
                 await self.session.initialize()
                 self._connected = True
+                logger.debug(f"[CONNECTION] MCP session initialized for {self.name}")
 
                 # List available tools
                 tools_result: ListToolsResult = await self.session.list_tools()
                 self._tools = self._filter_tools(tools_result.tools)
 
                 logger.info(
-                    f"Backend {self.name} connected with {len(self._tools)} tools"
+                    f"[CONNECTION] Backend {self.name} connected successfully with "
+                    f"{len(self._tools)} tools available"
+                )
+                logger.debug(
+                    f"[CONNECTION] Tools: {[tool.name for tool in self._tools]}"
                 )
 
         except Exception as e:
-            logger.error(f"Failed to connect to backend {self.name}: {e}")
+            logger.error(
+                f"[CONNECTION] Failed to connect to backend {self.name}: {type(e).__name__}: {e}",
+                exc_info=True,
+            )
             await self.disconnect()
             raise BackendConnectionError(f"Connection failed: {e}") from e
 
@@ -263,45 +219,28 @@ class BackendConnection:
 
     async def disconnect(self) -> None:
         """Close connection to backend."""
-        logger.info(f"Disconnecting from backend: {self.name}")
+        logger.info(f"[DISCONNECT] Initiating disconnection from backend: {self.name}")
 
         self._connected = False
         self._tools = []
 
         if self._exit_stack:
-            # Suppress all stderr output during disconnect to prevent
-            # "RuntimeError: Attempted to exit cancel scope in a different task"
-            # and other async generator errors from polluting the console.
-            # These errors are harmless during shutdown.
-            import sys
-            from io import StringIO
-
-            old_stderr = sys.stderr
-            old_stdout = sys.stdout
-
             try:
-                # Redirect both stdout and stderr to a dummy buffer
-                dummy = StringIO()
-                sys.stderr = dummy
-                sys.stdout = dummy
+                logger.debug(f"[DISCONNECT] Closing exit stack for {self.name}")
+                await self._exit_stack.aclose()
+                logger.info(f"[DISCONNECT] Exit stack closed successfully for {self.name}")
+            except asyncio.CancelledError:
+                # Don't re-raise - we're shutting down anyway
+                logger.debug(f"[DISCONNECT] Backend {self.name} disconnect cancelled")
+            except Exception as e:
+                # Log the error but don't propagate - we're shutting down anyway
+                logger.warning(
+                    f"[DISCONNECT] Error closing exit stack for {self.name}: {type(e).__name__}: {e}"
+                )
 
-                # Close the exit stack with comprehensive error suppression
-                try:
-                    await self._exit_stack.aclose()
-                except asyncio.CancelledError:
-                    # Don't re-raise - we're shutting down anyway
-                    logger.debug(f"Backend {self.name} disconnect cancelled")
-                except (Exception, RuntimeError, BaseException):
-                    # Suppress ALL other errors during shutdown
-                    pass
-
-            finally:
-                # Always restore stdout/stderr
-                sys.stderr = old_stderr
-                sys.stdout = old_stdout
-                self._exit_stack = None
-
+        self._exit_stack = None
         self.session = None
+        logger.info(f"[DISCONNECT] Backend {self.name} disconnection complete")
 
     async def restart(self, new_config: ServerConfig | None = None) -> None:
         """Restart the backend with optionally new configuration.
@@ -442,7 +381,7 @@ class BackendManager:
             for tool in backend.tools:
                 # Create namespaced copy of tool
                 namespaced_tool = Tool(
-                    name=f"{backend.name}__{tool.name}",
+                    name=f"{backend.name}{self._namespace_separator}{tool.name}",
                     description=f"[{backend.name}] {tool.description or ''}",
                     inputSchema=tool.inputSchema,
                 )

@@ -121,10 +121,21 @@ class CircuitBreaker:
             Exception: Any exception raised by func
         """
         async with self._lock:
+            current_state = self._state
             await self._update_state()
+
+            if current_state != self._state:
+                logger.info(
+                    f"[CIRCUIT] State transition for '{self.name}': "
+                    f"{current_state.name.upper()} -> {self._state.name.upper()}"
+                )
 
             if self._state == CircuitState.OPEN:
                 retry_after = self._get_retry_after()
+                logger.warning(
+                    f"[CIRCUIT] Circuit '{self.name}' OPEN - rejecting request. "
+                    f"Failures: {self._failure_count}, Retry after: {retry_after:.1f}s"
+                )
                 raise CircuitBreakerOpen(
                     f"Circuit breaker '{self.name}' is open. Retry after {retry_after:.1f}s",
                     backend_name=self.name,
@@ -134,20 +145,31 @@ class CircuitBreaker:
             if self._state == CircuitState.HALF_OPEN:
                 if self._half_open_calls >= self.half_open_max_calls:
                     retry_after = self._get_retry_after()
+                    logger.warning(
+                        f"[CIRCUIT] Circuit '{self.name}' HALF_OPEN max calls reached. "
+                        f"Current calls: {self._half_open_calls}/{self.half_open_max_calls}"
+                    )
                     raise CircuitBreakerOpen(
                         f"Circuit breaker '{self.name}' is open. Retry after {retry_after:.1f}s",
                         backend_name=self.name,
                         retry_after=retry_after,
                     )
                 self._half_open_calls += 1
+                logger.debug(
+                    f"[CIRCUIT] Circuit '{self.name}' HALF_OPEN - call {self._half_open_calls} "
+                    f"/ {self.half_open_max_calls}"
+                )
 
         # Execute outside the lock
         try:
             result = await func(*args, **kwargs)
             await self._on_success()
             return result
-        except self.expected_exception:
+        except self.expected_exception as e:
             await self._on_failure()
+            logger.warning(
+                f"[CIRCUIT] Circuit '{self.name}' failure detected: {type(e).__name__}: {e}"
+            )
             raise
 
     def __call__(
@@ -171,7 +193,8 @@ class CircuitBreaker:
             elapsed = time.time() - self._last_failure_time
             if elapsed >= self.recovery_timeout:
                 logger.info(
-                    f"Circuit breaker '{self.name}' entering half-open state"
+                    f"[CIRCUIT] State transition for '{self.name}': "
+                    f"OPEN -> HALF_OPEN (recovery timeout elapsed: {elapsed:.1f}s)"
                 )
                 self._state = CircuitState.HALF_OPEN
                 self._half_open_calls = 0
@@ -182,36 +205,53 @@ class CircuitBreaker:
         async with self._lock:
             if self._state == CircuitState.HALF_OPEN:
                 self._success_count += 1
+                logger.debug(
+                    f"[CIRCUIT] Circuit '{self.name}' HALF_OPEN success #{self._success_count} "
+                    f"/ {self.half_open_max_calls}"
+                )
                 # If we've had enough successes, close the circuit
                 if self._success_count >= self.half_open_max_calls:
-                    logger.info(f"Circuit breaker '{self.name}' closing")
+                    logger.info(
+                        f"[CIRCUIT] State transition for '{self.name}': "
+                        f"HALF_OPEN -> CLOSED (recovery successful after {self._failure_count} failures)"
+                    )
                     self._state = CircuitState.CLOSED
                     self._failure_count = 0
                     self._half_open_calls = 0
             elif self._state == CircuitState.CLOSED:
                 # Reset failure count on success
-                self._failure_count = 0
+                if self._failure_count > 0:
+                    old_count = self._failure_count
+                    self._failure_count = 0
+                    logger.debug(
+                        f"[CIRCUIT] Circuit '{self.name}' failure count reset: {old_count} -> 0"
+                    )
 
     async def _on_failure(self) -> None:
         """Handle failed call."""
         async with self._lock:
             self._failure_count += 1
             self._last_failure_time = time.time()
-
-            if self._state == CircuitState.HALF_OPEN:
-                # Failure in half-open state goes back to open
+            logger.debug(
+                f"[CIRCUIT] Circuit '{self.name}' failure #{self._failure_count} "
+                f"/ {self.failure_threshold}"
+            )
+            # Check if we should open the circuit
+            if self._state == CircuitState.CLOSED:
+                if self._failure_count >= self.failure_threshold:
+                    logger.warning(
+                        f"[CIRCUIT] State transition for '{self.name}': "
+                        f"CLOSED -> OPEN (failure threshold reached: {self._failure_count}/{self.failure_threshold})"
+                    )
+                    self._state = CircuitState.OPEN
+            elif self._state == CircuitState.HALF_OPEN:
+                # Any failure in half-open state immediately reopens the circuit
                 logger.warning(
-                    f"Circuit breaker '{self.name}' returning to open state"
+                    f"[CIRCUIT] State transition for '{self.name}': "
+                    f"HALF_OPEN -> OPEN (failure during recovery test)"
                 )
                 self._state = CircuitState.OPEN
                 self._half_open_calls = 0
-            elif self._state == CircuitState.CLOSED:
-                if self._failure_count >= self.failure_threshold:
-                    logger.warning(
-                        f"Circuit breaker '{self.name}' opening after "
-                        f"{self._failure_count} failures"
-                    )
-                    self._state = CircuitState.OPEN
 
     def _get_retry_after(self) -> float:
         """Calculate seconds until next retry attempt."""
