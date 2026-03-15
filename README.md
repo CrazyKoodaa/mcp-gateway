@@ -2,7 +2,7 @@
 
 > **One endpoint. All your MCP tools.**
 
-🔐 **Security-First**: Built-in access control with time-limited approval for system-critical areas. Grant temporary access to sensitive paths directly from the Admin Dashboard or via CLI.
+🔐 **Security-First**: Additional security layer between MCP servers and your system. MCP Gateway acts as an "air gap" - preventing direct access to critical system areas while allowing time-limited approvals for sensitive operations via Admin Dashboard or CLI.
 
 A production-ready gateway that aggregates multiple MCP (Model Context Protocol) servers into a single endpoint. Supports local stdio servers (npx, uvx), remote HTTP/SSE servers, and everything in between.
 
