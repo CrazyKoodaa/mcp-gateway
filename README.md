@@ -2,6 +2,8 @@
 
 > **One endpoint. All your MCP tools.**
 
+⚠️ **BETA VERSION** - This is an early release with active development. Features may change, and there are still many improvements planned. Use with caution in production environments.
+
 🔐 **Security-First**: Additional security layer between MCP servers and your system. MCP Gateway acts as an "air gap" - preventing direct access to critical system areas while allowing time-limited approvals for sensitive operations via Admin Dashboard or CLI.
 
 A production-ready gateway that aggregates multiple MCP (Model Context Protocol) servers into a single endpoint. Supports local stdio servers (npx, uvx), remote HTTP/SSE servers, and everything in between.
