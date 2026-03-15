@@ -32,7 +32,6 @@ A production-ready gateway that aggregates multiple MCP (Model Context Protocol)
 - [Architecture](#-architecture)
 - [Available MCP Servers](#-available-mcp-servers)
 - [Production Deployment](#-production-deployment)
-- [Senior Architect Integration](#-senior-architect-sa-integration)
 - [Troubleshooting](#-troubleshooting)
 - [Development](#-development)
 
@@ -1135,65 +1134,6 @@ CMD ["mcp-gateway", "--host", "0.0.0.0", "--config", "/app/config.json"]
 docker build -t mcp-gateway .
 docker run -p 3000:3000 -v $(pwd)/config.json:/app/config.json mcp-gateway
 ```
-
----
-
-## 🤖 Senior Architect (SA) Integration
-
-This project includes integration with a local **Senior Python Developer & Architect (SA)** - a secondary AI model (Qwen3.5-35B) running via llama.cpp.
-
-### What is SA?
-
-The SA provides:
-- **Production-ready Python code** - No placeholders, working implementations
-- **Test-Driven Development (TDD)** - Complete test suites
-- **Architecture consulting** - Design patterns, best practices, code reviews
-- **FastAPI, SQLAlchemy, Pydantic expertise**
-
-### Setup SA
-
-1. **Install llama.cpp**:
-   ```bash
-   git clone https://github.com/ggerganov/llama.cpp.git
-   cd llama.cpp
-   cmake -B build
-   cmake --build build --config Release
-   ```
-
-2. **Download a model** (e.g., Qwen3.5-35B-A3B):
-   ```bash
-   # Place model in llama.cpp/model/
-   ```
-
-3. **Install systemd service**:
-   ```bash
-   sudo cp llama-server-optimized.service /etc/systemd/system/llama-server.service
-   sudo systemctl daemon-reload
-   sudo systemctl enable llama-server
-   sudo systemctl start llama-server
-   ```
-
-4. **Register SA with Kimi CLI**:
-   ```bash
-   kimi mcp add sa /path/to/mcp-gateway/sa_wrapper.sh
-   ```
-
-### Using SA
-
-**Discussion Mode** (synchronous):
-```
-@sa_discuss question="Review this circuit breaker implementation"
-```
-
-**Task Mode** (asynchronous):
-```
-@sa_submit tasks=["Implement auth service with JWT", "Create test suite"]
-
-# Later...
-@sa_results
-```
-
-See [docs-internal/sa-usage-guide.md](docs-internal/sa-usage-guide.md) for complete documentation.
 
 ---
 
