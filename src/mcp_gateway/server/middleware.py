@@ -6,6 +6,7 @@ import time
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 if TYPE_CHECKING:
@@ -71,6 +72,17 @@ class CircuitBreakerMiddleware:
 
 def setup_middleware(app: FastAPI, deps: ServerDependencies) -> None:
     """Setup all middleware for the FastAPI application."""
+
+    # CORS middleware - must be first to handle OPTIONS requests
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+        max_age=86400,  # 24 hours preflight cache
+    )
 
     # Request timing middleware
     @app.middleware("http")
