@@ -10,10 +10,33 @@ A production-ready gateway that aggregates multiple MCP (Model Context Protocol)
 │    webui        │◄────►│  (ONE port: 3000)            │◄────►│ • memory        │
 │  Claude Desktop │HTTP  │                              │      │ • time          │
 │  Cursor         │      │ • StreamableHTTP primary     │HTTP  │ • filesystem    │
-│  Any MCP client │      │ • SSE fallback               │◄────►│ • fetch         │
-└─────────────────┘      │ • Smart transport switching  │      │ • github        │
-                         └──────────────────────────────┘      └─────────────────┘
+│  OpenWebUI      │      │ • SSE fallback               │◄────►│ • fetch         │
+│  Any MCP client │      │ • Smart transport switching  │      │ • github        │
+└─────────────────┘      └──────────────────────────────┘      └─────────────────┘
 ```
+
+---
+
+## 📚 Table of Contents
+
+- [Why This Project Exists](#-why-this-project-exists)
+- [Features](#-features)
+- [Quick Start](#-quick-start)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [Running the Gateway](#-running-the-gateway)
+- [Client Integration](#-client-integration)
+- [Admin Dashboard](#-admin-dashboard)
+- [CLI Commands](#-cli-commands)
+- [API Reference](#-api-reference)
+- [Architecture](#-architecture)
+- [Available MCP Servers](#-available-mcp-servers)
+- [Production Deployment](#-production-deployment)
+- [Senior Architect Integration](#-senior-architect-sa-integration)
+- [Troubleshooting](#-troubleshooting)
+- [Development](#-development)
+
+---
 
 ## 🎯 Why This Project Exists
 
@@ -50,10 +73,13 @@ MCP servers are powerful but managing them is painful:
 - ❌ llama.cpp webui speaks **MCP protocol**, not OpenAPI
 - ❌ Claude Desktop speaks **MCP protocol**, not OpenAPI
 - ❌ Cursor speaks **MCP protocol**, not OpenAPI
+- ❌ OpenWebUI speaks **MCP protocol**, not OpenAPI
 
 **Result**: mcpo is incompatible with standard MCP clients.
 
-## ✨ What Makes mcp-gateway Different
+---
+
+## ✨ Features
 
 ### 1. **Instant Config Changes — No Restart Required**
 
@@ -66,8 +92,6 @@ mcp-gateway --hot-reload
 # Or edit via the web UI — changes apply instantly
 # No restart, no downtime, no lost connections
 ```
-
-Add a new MCP server, disable a tool, or change timeouts — all without restarting the gateway.
 
 ### 2. **Security-First Path Approval**
 
@@ -83,8 +107,6 @@ mcp-gateway approve ABC-1234 -d 30
 # Or use interactive mode to review and approve
 mcp-gateway approve
 ```
-
-When a tool tries to access `/etc`, `/home`, or other sensitive paths, the request is **blocked until approved**. Access automatically **expires** after the granted duration — no lingering permissions.
 
 ### 3. **True MCP Protocol**
 
@@ -121,19 +143,14 @@ Mix and match any transport:
 ```json
 {
   "mcpServers": {
-    // Local stdio servers
     "memory": {
       "command": "npx -y @modelcontextprotocol/server-memory"
     },
-    
-    // Remote StreamableHTTP servers
     "github": {
       "type": "streamable-http",
       "url": "https://api.githubcopilot.com/mcp/",
       "headers": {"Authorization": "Bearer token"}
     },
-    
-    // Remote SSE servers
     "custom-api": {
       "type": "sse",
       "url": "http://localhost:8001/sse"
@@ -144,17 +161,7 @@ Mix and match any transport:
 
 ### 7. **Smart Transport Selection**
 
-Like llama.cpp webui, we use the modern **StreamableHTTP** first, with automatic **SSE fallback**:
-
-```
-Client connects to /mcp
-    ↓
-Try StreamableHTTP (efficient, stateless)
-    ↓
-If that fails → Auto-fallback to SSE
-    ↓
-Client gets tools from ALL backends
-```
+Like llama.cpp webui, we use the modern **StreamableHTTP** first, with automatic **SSE fallback**.
 
 ### 8. **Tool Filtering**
 
@@ -169,32 +176,127 @@ Disable problematic tools per server:
 }
 ```
 
+### 9. **Built-in Features**
+
+- 🔐 **Authentication** - API key and Bearer token support
+- 📊 **Metrics** - Prometheus-compatible `/metrics` endpoint
+- 🔄 **Hot Reload** - Config changes without restart
+- 🛡️ **Circuit Breaker** - Fail fast when backends are down
+- 👁️ **Process Supervision** - Auto-restart crashed stdio servers
+- 📝 **Structured Logging** - JSON format with configurable levels
+- 🎨 **Web Dashboard** - Multiple themes (Standard, Blue Box, Retro 80s CRT)
+- ⏱️ **Rate Limiting** - Per-client request throttling
+
+---
+
 ## 🚀 Quick Start
 
-### Installation
+### Prerequisites
+
+- Python 3.11+
+- [uv](https://github.com/astral-sh/uv) (recommended) or pip
+- Node.js (for npx-based MCP servers)
+
+### 1. Clone & Bootstrap
 
 ```bash
 # Clone the repository
 git clone https://github.com/CrazyKoodaa/mcp-gateway.git
 cd mcp-gateway
 
-# Install (Python 3.11+)
-pip install -e .
-
-# Or with uv
-uv pip install -e .
+# Run the bootstrap script (installs deps, creates config)
+./bootstrap.sh
 ```
 
-### Configuration
+The bootstrap script will:
+- ✅ Check Python version (3.11+ required)
+- ✅ Check/install `uv`
+- ✅ Create virtual environment (`.venv`)
+- ✅ Install all dependencies
+- ✅ Create `config.json` from template
+- ✅ Create necessary directories (`logs/`, `ai/logs/`)
+- ✅ Run basic tests
 
-Create `config.json`:
+### 2. Start the Gateway
+
+```bash
+# Using the run script
+./run.sh
+
+# Or directly with uv
+uv run python -m mcp_gateway
+
+# Or after pip install
+mcp-gateway
+```
+
+### 3. Test It
+
+```bash
+# Check health
+curl http://localhost:3000/health
+
+# List all tools
+curl http://localhost:3000/backends
+
+# Open web dashboard
+open http://localhost:3000
+```
+
+---
+
+## 📦 Installation
+
+### Option 1: Development Install (Recommended)
+
+```bash
+git clone https://github.com/CrazyKoodaa/mcp-gateway.git
+cd mcp-gateway
+./bootstrap.sh
+```
+
+### Option 2: Update Existing Installation
+
+```bash
+./bootstrap.sh update
+```
+
+This will:
+- Pull latest git changes
+- Update dependencies
+- Run tests
+
+### Option 3: Manual Install with pip
+
+```bash
+git clone https://github.com/CrazyKoodaa/mcp-gateway.git
+cd mcp-gateway
+pip install -e ".[dev]"
+```
+
+### Option 4: Using uv
+
+```bash
+git clone https://github.com/CrazyKoodaa/mcp-gateway.git
+cd mcp-gateway
+uv venv .venv
+uv pip install -e ".[dev]"
+```
+
+---
+
+## ⚙️ Configuration
+
+### Basic Config (`config.json`)
 
 ```json
 {
   "gateway": {
     "host": "127.0.0.1",
     "port": 3000,
-    "logLevel": "INFO"
+    "logLevel": "INFO",
+    "enableNamespacing": true,
+    "namespaceSeparator": "__"
   },
   "mcpServers": {
     "memory": {
@@ -219,63 +321,26 @@ Create `config.json`:
 }
 ```
 
-### Run
+### Configuration Options
 
-```bash
-# Simple
-python -m mcp-gateway
+#### Gateway Settings
 
-# With custom config
-python -m mcp-gateway --config /path/to/config.json
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `host` | string | `"127.0.0.1"` | Host to bind to |
+| `port` | integer | `3000` | Port to listen on |
+| `logLevel` | string | `"INFO"` | Log level (DEBUG, INFO, WARNING, ERROR) |
+| `enableNamespacing` | boolean | `true` | Prefix tools with server name |
+| `namespaceSeparator` | string | `"__"` | Separator for namespacing |
+| `connectionTimeout` | number | `30` | Connection timeout in seconds |
+| `requestTimeout` | number | `60` | Request timeout in seconds |
+| `apiKey` | string | `null` | API key for authentication |
+| `bearerToken` | string | `null` | Bearer token for authentication |
+| `authExcludePaths` | array | `[]` | Paths excluded from auth |
 
-# With overrides
-python -m mcp-gateway --host 0.0.0.0 --port 8080 --log-level DEBUG
-```
+#### Stdio Server Formats
 
-### Connect Your Client
-
-**llama.cpp webui:**
-```json
-[
-  {
-    "id": "gateway",
-    "enabled": true,
-    "url": "http://localhost:3000/mcp",
-    "useProxy": false
-  }
-]
-```
-
-**Claude Desktop:**
-```json
-{
-  "mcpServers": {
-    "gateway": {
-      "type": "sse",
-      "url": "http://localhost:3000/sse"
-    }
-  }
-}
-```
-
-**Cursor:**
-```json
-{
-  "mcpServers": {
-    "gateway": {
-      "url": "http://localhost:3000/mcp"
-    }
-  }
-}
-```
-
-## 📖 Configuration Reference
-
-### Stdio Server
-
-**Three formats supported** - use whichever is most readable:
-
-#### Format 1: Separate `command` and `args` (Recommended for complex configs)
+**Format 1: Separate command and args (Recommended)**
 
 ```json
 {
@@ -287,120 +352,99 @@ python -m mcp-gateway --host 0.0.0.0 --port 8080 --log-level DEBUG
 }
 ```
 
-Best when you need additional options like `disabledTools` or `env`.
-
-#### Format 2: One-liner (Auto-parsed, great for simple commands)
+**Format 2: One-liner (Auto-parsed)**
 
 ```json
 {
   "filesystem": {
-    "command": "npx -y @modelcontextprotocol/server-filesystem /home/user/projects /home/user/docs"
+    "command": "npx -y @modelcontextprotocol/server-filesystem /home/user/projects"
   }
 }
 ```
 
-The gateway automatically splits the command by spaces (respecting quotes). This is parsed as:
-- `command`: `npx`
-- `args`: `["-y", "@modelcontextprotocol/server-filesystem", "/home/user/projects", "/home/user/docs"]`
-
-#### Format 3: Args as string
+**Format 3: With environment variables**
 
 ```json
 {
-  "fetch": {
-    "command": "uvx",
-    "args": "mcp-server-fetch --timeout 30"
-  }
-}
-```
-
-String args are automatically split into an array.
-
-#### Full options
-
-```json
-{
-  "name": {
+  "github": {
     "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-memory"],
-    "env": {"KEY": "value"},
-    "disabledTools": ["tool_name"]
-  }
-}
-```
-
-### Remote StreamableHTTP Server
-
-```json
-{
-  "name": {
-    "type": "streamable-http",
-    "url": "https://api.example.com/mcp",
-    "headers": {
-      "Authorization": "Bearer token"
+    "args": ["-y", "@modelcontextprotocol/server-github"],
+    "env": {
+      "GITHUB_TOKEN": "ghp_xxxxxxxxxxxx"
     }
   }
 }
 ```
 
-### Remote SSE Server
+#### Remote StreamableHTTP Server
 
 ```json
 {
-  "name": {
+  "github-copilot": {
+    "type": "streamable-http",
+    "url": "https://api.githubcopilot.com/mcp/",
+    "headers": {
+      "Authorization": "Bearer YOUR_TOKEN"
+    }
+  }
+}
+```
+
+#### Remote SSE Server
+
+```json
+{
+  "custom-server": {
     "type": "sse",
     "url": "http://localhost:8001/sse"
   }
 }
 ```
 
-## 🔧 Advanced Features
+### Advanced Configuration Examples
 
-### Authentication
-
-Protect your gateway with API key or Bearer token authentication:
+**With Authentication:**
 
 ```json
 {
   "gateway": {
-    "apiKey": "your-secure-api-key",
-    "bearerToken": "your-secure-bearer-token",
+    "host": "0.0.0.0",
+    "port": 3000,
+    "apiKey": "mg_prod_your_secure_key",
+    "bearerToken": "your_bearer_token",
     "authExcludePaths": ["/health", "/metrics"]
   }
 }
 ```
 
-Use in requests:
-```bash
-curl -H "X-API-Key: your-secure-api-key" http://localhost:3000/mcp
-# or
-curl -H "Authorization: Bearer your-secure-bearer-token" http://localhost:3000/mcp
+**With Rate Limiting:**
+
+```json
+{
+  "gateway": {
+    "rateLimit": {
+      "enabled": true,
+      "requestsPerSecond": 10,
+      "burstSize": 20
+    }
+  }
+}
 ```
 
-### Hot Reload
+**With Circuit Breaker:**
 
-Reload configuration without restarting:
-
-```bash
-# Enable file watching (uses watchdog if available)
-mcp-gateway --hot-reload
-
-# Use polling instead (for network filesystems)
-mcp-gateway --hot-reload --poll
+```json
+{
+  "gateway": {
+    "circuitBreakerEnabled": true,
+    "circuitBreakerFailureThreshold": 5,
+    "circuitBreakerRecoveryTimeout": 30
+  }
+}
 ```
 
-Edit `config.json` and changes are applied automatically.
+**With Process Supervision:**
 
-### Process Supervision
-
-Auto-restart crashed stdio servers (enabled by default):
-
-```bash
-# Disable supervision
-mcp-gateway --no-supervision
-```
-
-Configure in `config.json`:
 ```json
 {
   "gateway": {
@@ -415,89 +459,275 @@ Configure in `config.json`:
 }
 ```
 
-View supervision status: `GET /supervision`
-
-### Circuit Breaker
-
-Prevent cascading failures when backends are unhealthy:
+**With Sensitive Path Protection:**
 
 ```json
 {
   "gateway": {
-    "circuitBreakerEnabled": true,
-    "circuitBreakerFailureThreshold": 5,
-    "circuitBreakerRecoveryTimeout": 30
-  }
-}
-```
-
-- **CLOSED**: Normal operation
-- **OPEN**: Failing fast after threshold reached
-- **HALF_OPEN**: Testing if backend recovered
-
-View circuit states: `GET /circuit-breakers`
-
-### Config Approval for Sensitive Paths
-
-Require CLI approval for filesystem changes:
-
-```json
-{
-  "gateway": {
-    "sensitivePaths": ["/etc", "/home", "/var"],
+    "sensitivePaths": ["/etc", "/home", "/var", "/root"],
     "pathApprovalTimeout": 300
   }
 }
 ```
 
-When a tool tries to access a sensitive path, approve via CLI:
+---
+
+## ▶️ Running the Gateway
+
+### Basic Usage
 
 ```bash
-mcp-gateway approve
-# Enter the approval code shown in the web UI or logs
+# Start with default config (config.json)
+mcp-gateway
+
+# With custom config
+mcp-gateway --config /path/to/config.json
+
+# With host/port overrides
+mcp-gateway --host 0.0.0.0 --port 8080
+
+# With debug logging
+mcp-gateway --log-level DEBUG
 ```
 
-### Rate Limiting
+### With Hot Reload
 
-Prevent abuse with per-client rate limiting:
+```bash
+# Enable config file watching
+mcp-gateway --hot-reload
+
+# Use polling instead of inotify (for network filesystems)
+mcp-gateway --hot-reload --poll
+```
+
+### Process Supervision
+
+```bash
+# Disable auto-restart of crashed servers
+mcp-gateway --no-supervision
+```
+
+### Logging Options
+
+```bash
+# Console logging (development)
+mcp-gateway --console-log
+
+# JSON logging (production, default)
+mcp-gateway
+```
+
+### Complete Example
+
+```bash
+mcp-gateway \
+  --config ./config.json \
+  --host 0.0.0.0 \
+  --port 3000 \
+  --log-level INFO \
+  --hot-reload \
+  --console-log
+```
+
+---
+
+## 🔌 Client Integration
+
+### llama.cpp webui
+
+Add to your llama.cpp webui configuration:
+
+```json
+[
+  {
+    "id": "mcp-gateway",
+    "enabled": true,
+    "url": "http://localhost:3000/mcp",
+    "useProxy": false
+  }
+]
+```
+
+Location depends on your llama.cpp webui setup:
+- **Docker**: Mount the config to `/app/mcp-config.json`
+- **Native**: Check your webui's settings directory
+
+### OpenWebUI
+
+In OpenWebUI, go to **Settings** → **Tools** → **MCP Servers**:
 
 ```json
 {
-  "gateway": {
-    "rateLimit": {
-      "enabled": true,
-      "requestsPerSecond": 10,
-      "burstSize": 20
+  "mcpServers": {
+    "mcp-gateway": {
+      "url": "http://localhost:3000/mcp"
     }
   }
 }
 ```
 
-### Structured Logging
+Or use the SSE endpoint for older versions:
 
-JSON logs for production environments:
+```json
+{
+  "mcpServers": {
+    "mcp-gateway": {
+      "type": "sse",
+      "url": "http://localhost:3000/sse"
+    }
+  }
+}
+```
+
+### Claude Desktop
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%/Claude/claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "gateway": {
+      "type": "sse",
+      "url": "http://localhost:3000/sse"
+    }
+  }
+}
+```
+
+### Cursor
+
+In Cursor, go to **Settings** → **AI** → **MCP**:
+
+```json
+{
+  "mcpServers": {
+    "gateway": {
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
+```
+
+### Kimi CLI
 
 ```bash
-# Default: JSON structured logging
-mcp-gateway
+# Add MCP gateway to Kimi CLI
+kimi mcp add gateway http://localhost:3000/mcp
 
-# Console logging for development
-mcp-gateway --console-log
+# Or with authentication
+kimi mcp add gateway http://localhost:3000/mcp --api-key YOUR_API_KEY
 ```
 
-### Metrics
+### Generic HTTP Client
 
-Prometheus-compatible metrics at `/metrics`:
+```bash
+# Get all tools
+curl http://localhost:3000/backends
 
-```prometheus
-# HELP mcp_gateway_requests_total Total requests
-# TYPE mcp_gateway_requests_total counter
-mcp_gateway_requests_total{backend="memory",status="success"} 42
-
-# HELP mcp_gateway_backend_connected Backend connection status
-# TYPE mcp_gateway_backend_connected gauge
-mcp_gateway_backend_connected{name="time"} 1
+# Call a tool (StreamableHTTP)
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+      "name": "time__get_current_time",
+      "arguments": {}
+    },
+    "id": 1
+  }'
 ```
+
+---
+
+## 🎨 Admin Dashboard
+
+MCP Gateway includes multiple themed web dashboards:
+
+| URL | Theme | Description |
+|-----|-------|-------------|
+| `/` | Standard | Clean modern dashboard |
+| `/admin` | Admin Panel | Server configuration management |
+| `/blue-box` | Blue Box | Cyberpunk blue terminal theme |
+| `/retro` | Retro 80s | CRT terminal nostalgia |
+| `/retro-admin` | Retro Admin | CRT terminal admin panel |
+
+### Dashboard Features
+
+- 📊 **Real-time backend status** - See all connected MCP servers
+- 🔧 **Server management** - Add, edit, remove servers via web UI
+- 🛠️ **Tool inspection** - View available tools per server
+- 📝 **Live logs** - View gateway logs in real-time
+- ⚙️ **Config editing** - Edit configuration directly in the browser
+
+---
+
+## 🖥️ CLI Commands
+
+### Approve Access Requests
+
+When a tool tries to access a sensitive path, you must approve it:
+
+```bash
+# Interactive mode (recommended)
+mcp-gateway approve
+
+# Quick approve with code
+mcp-gateway approve ABCD-1234
+
+# Approve with custom duration (minutes)
+mcp-gateway approve ABCD-1234 -d 30
+```
+
+### List Pending Requests
+
+```bash
+mcp-gateway list
+```
+
+### CLI Options
+
+```bash
+# Use different gateway URL
+mcp-gateway --api-url http://gateway:3000 approve
+```
+
+---
+
+## 🔌 API Reference
+
+### MCP Protocol Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/mcp` | POST | Primary StreamableHTTP endpoint |
+| `/sse` | GET | SSE fallback endpoint |
+| `/message` | POST | SSE message handler |
+
+### Management Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check + backend status |
+| `/metrics` | GET | Prometheus metrics |
+| `/backends` | GET | List connected backends |
+| `/circuit-breakers` | GET | Circuit breaker statistics |
+| `/supervision` | GET | Process supervision status |
+| `/backends/{name}/restart` | POST | Restart a backend |
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/servers` | GET | List all configured servers |
+| `/api/servers/{name}/tools` | GET | Get tools for a server |
+| `/api/servers/{name}` | PUT | Update server configuration |
+| `/api/config-changes/pending` | GET | List pending config changes |
+| `/api/config-changes/{code}/approve` | POST | Approve a config change |
+| `/api/access/requests/pending` | GET | List pending access requests |
+| `/api/access/requests/{code}/approve` | POST | Approve an access request |
+
+---
 
 ## 🏗️ Architecture
 
@@ -526,38 +756,166 @@ mcp_gateway_backend_connected{name="time"} 1
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## 🧪 API Endpoints
+### Project Structure
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/mcp` | POST | Primary StreamableHTTP endpoint |
-| `/sse` | GET | SSE fallback endpoint |
-| `/message` | POST | SSE message handler |
-| `/health` | GET | Health check + backend status |
-| `/metrics` | GET | Prometheus metrics |
-| `/circuit-breakers` | GET | Circuit breaker statistics |
-| `/backends` | GET | List connected backends |
-| `/supervision` | GET | Process supervision status |
-| `/backends/{name}/restart` | POST | Restart a backend |
-| `/api/servers` | GET | List all configured servers |
-| `/api/servers/{name}/tools` | GET | Get tools for a server |
-| `/api/servers/{name}` | PUT | Update server configuration |
-| `/api/config-changes/pending` | GET | List pending config changes |
-| `/api/config-changes/{code}/approve` | POST | Approve a config change |
+```
+src/mcp_gateway/
+├── server/              # FastAPI server package
+│   ├── __init__.py      # Package exports
+│   ├── server.py        # Main server class
+│   ├── state.py         # Dependency injection container
+│   ├── models.py        # Pydantic request/response models
+│   ├── http_routes.py   # HTTP API route handlers
+│   ├── mcp_handlers.py  # MCP protocol handlers
+│   └── middleware.py    # FastAPI middleware
+├── access_control/      # Access control package
+│   ├── __init__.py      # Package exports
+│   ├── manager.py       # Access control manager
+│   ├── models.py        # Data models & enums
+│   ├── patterns.py      # Sensitive path patterns
+│   └── utils.py         # Utility functions
+├── exceptions.py        # Custom exception hierarchy
+├── config.py            # Configuration models & validation
+├── backends.py          # Backend connection management
+├── circuit_breaker.py   # Circuit breaker implementation
+├── rate_limiter.py      # Rate limiting middleware
+├── auth.py              # Authentication middleware
+├── metrics.py           # Prometheus metrics
+├── admin.py             # Config management
+├── supervisor.py        # Process supervision
+└── main.py              # Application entry point
+```
 
-### Web Dashboards
+---
 
-Multiple themed dashboards are available:
+## 🔧 Troubleshooting
 
-| URL | Theme | Description |
-|-----|-------|-------------|
-| `/` | Standard | Clean modern dashboard |
-| `/admin` | Admin Panel | Server configuration management |
-| `/blue-box` | Blue Box | Cyberpunk blue terminal theme |
-| `/retro` | Retro 80s | CRT terminal nostalgia |
-| `/retro-admin` | Retro Admin | CRT terminal admin panel |
+### Gateway Won't Start
 
-## 🔄 Comparison in Detail
+```bash
+# Check Python version
+python3 --version  # Must be 3.11+
+
+# Check config is valid JSON
+python3 -m json.tool config.json
+
+# Check dependencies are installed
+uv pip list | grep mcp-gateway
+```
+
+### No Tools Showing
+
+```bash
+# Check backend status
+curl http://localhost:3000/backends
+
+# Check individual server logs
+# Logs are in logs/ directory
+```
+
+### Authentication Errors
+
+```bash
+# Test with curl
+curl -H "X-API-Key: your-key" http://localhost:3000/mcp
+
+# Or with Bearer token
+curl -H "Authorization: Bearer your-token" http://localhost:3000/mcp
+```
+
+### Stdio Servers Crashing
+
+```bash
+# Check process supervision status
+curl http://localhost:3000/supervision
+
+# Restart a specific backend
+curl -X POST http://localhost:3000/backends/{name}/restart
+```
+
+### Hot Reload Not Working
+
+```bash
+# Use polling mode instead
+mcp-gateway --hot-reload --poll
+```
+
+### Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| `ModuleNotFoundError` | Run `uv pip install -e ".[dev]"` |
+| `Address already in use` | Change port: `mcp-gateway --port 3001` |
+| `Permission denied` | Check file permissions or use sudo for ports < 1024 |
+| `Backend disconnected` | Check server logs, restart with `/backends/{name}/restart` |
+
+---
+
+## 🛠️ Development
+
+### Setup Development Environment
+
+```bash
+# Clone repository
+git clone https://github.com/CrazyKoodaa/mcp-gateway.git
+cd mcp-gateway
+
+# Install with dev dependencies
+uv pip install -e ".[dev]"
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run specific test file
+uv run pytest tests/test_config.py
+
+# Run with coverage
+uv run pytest --cov=mcp_gateway
+
+# Run benchmark tests
+uv run pytest tests/test_benchmark.py
+```
+
+### Code Quality
+
+```bash
+# Run type checker
+uv run mypy src/mcp_gateway
+
+# Run linter
+uv run ruff check src/mcp_gateway
+
+# Format code
+uv run ruff format src/mcp_gateway
+```
+
+### Load Testing
+
+```bash
+# Install locust
+uv pip install locust
+
+# Run load tests
+uv run locust -f tests/load/locustfile.py
+```
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests (`uv run pytest`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+---
+
+## 📊 Comparison in Detail
 
 ### vs supergateway
 
@@ -598,107 +956,42 @@ Client ──MCP──► mcp-gateway ──MCP──► Servers
        ✅ Native protocol!
 ```
 
-### vs lunfengchen/gateway-mcp
-
-That project uses **stdio transport** for the gateway itself:
-
-```
-Client ──stdio──► gateway ──stdio──► Servers
-```
-
-This works for local CLI clients but **not for HTTP-based clients** like llama.cpp webui.
-
-**mcp-gateway** exposes **HTTP endpoints**:
-
-```
-Client ──HTTP/SSE──► mcp-gateway ──(stdio/HTTP)──► Servers
-```
-
-Works with **all** MCP clients.
-
-## 🏗️ Architecture
-
-MCP Gateway is built with a modular, maintainable architecture:
-
-```
-src/mcp_gateway/
-├── server/              # FastAPI server package
-│   ├── __init__.py      # Package exports
-│   ├── server.py        # Main server class
-│   ├── state.py         # Dependency injection container
-│   ├── models.py        # Pydantic request/response models
-│   ├── http_routes.py   # HTTP API route handlers
-│   ├── mcp_handlers.py  # MCP protocol handlers
-│   └── middleware.py    # FastAPI middleware
-├── access_control/      # Access control package
-│   ├── __init__.py      # Package exports
-│   ├── manager.py       # Access control manager
-│   ├── models.py        # Data models & enums
-│   ├── patterns.py      # Sensitive path patterns
-│   └── utils.py         # Utility functions
-├── exceptions.py        # Custom exception hierarchy
-├── config.py            # Configuration models & validation
-├── backends.py          # Backend connection management
-├── circuit_breaker.py   # Circuit breaker implementation
-├── rate_limiter.py      # Rate limiting middleware
-├── auth.py              # Authentication middleware
-├── metrics.py           # Prometheus metrics
-├── admin.py             # Config management
-├── supervisor.py        # Process supervision
-└── main.py              # Application entry point
-```
-
-### Design Principles
-
-1. **Explicit Dependencies**: `ServerDependencies` dataclass replaces global state
-2. **Custom Exceptions**: Structured error hierarchy for better error handling
-3. **Modular Packages**: Related functionality grouped into subpackages
-4. **Type Safety**: Full type annotations with mypy strict mode
-5. **Testability**: All components easily mockable
+---
 
 ## 🛣️ Roadmap
 
 ### ✅ Completed
 
-- [x] **StreamableHTTP primary transport** - Modern stateless MCP transport
-- [x] **SSE fallback transport** - Legacy fallback for older clients
-- [x] **stdio backend support** - Run local MCP servers via command
-- [x] **Remote HTTP/SSE backend support** - Connect to remote MCP servers
-- [x] **Tool namespacing** - Configurable separator (default: `__`) prevents collisions
-- [x] **Tool filtering** - Disable specific tools per server
-- [x] **CORS support** - Cross-origin resource sharing enabled
-- [x] **Configurable timeouts** - Connection & request timeouts
-- [x] **Per-backend health check** - Individual backend status tracking
-- [x] **Authentication** - API key (`X-API-Key` header) and Bearer token support
-- [x] **Metrics endpoint** - Prometheus-compatible `/metrics` endpoint
-- [x] **Circuit breaker** - Fail fast when backends are down
-- [x] **Structured logging** - JSON format with configurable levels
-- [x] **Web Dashboard** - Multiple themes (Standard, Blue Box, Retro 80s CRT)
-- [x] **Hot reload** - Config changes without restart (`--hot-reload`)
-- [x] **Process supervision** - Auto-restart crashed stdio servers
-- [x] **Config approval** - CLI approval for sensitive path changes (`mcp-gateway approve`)
-- [x] **Rate limiting** - Per-client request throttling middleware
+- [x] StreamableHTTP primary transport
+- [x] SSE fallback transport
+- [x] stdio backend support
+- [x] Remote HTTP/SSE backend support
+- [x] Tool namespacing
+- [x] Tool filtering
+- [x] CORS support
+- [x] Configurable timeouts
+- [x] Per-backend health check
+- [x] Authentication
+- [x] Metrics endpoint
+- [x] Circuit breaker
+- [x] Structured logging
+- [x] Web Dashboard (multiple themes)
+- [x] Hot reload
+- [x] Process supervision
+- [x] Config approval
+- [x] Rate limiting
 
-### 🔜 Short-term (Planned)
+### 🔜 Planned
 
-- [ ] **Connection pooling** - Reuse backend connections for better performance
-- [ ] **Request tracing** - Distributed tracing for debugging
-- [ ] **Audit logging** - Security event logging
-- [ ] **Plugin system** - Extensible middleware architecture
+- [ ] Connection pooling
+- [ ] Request tracing
+- [ ] Audit logging
+- [ ] Plugin system
+- [ ] Dynamic tool discovery
+- [ ] Caching layer
+- [ ] Load balancing
 
-### 🎯 Mid-term (Planned)
-
-- [ ] **Dynamic tool discovery** - Add/remove backends at runtime via API
-- [ ] **Caching layer** - Cache tool results for expensive operations
-- [ ] **Load balancing** - Distribute requests across multiple backend instances
-- [ ] **Health check webhooks** - Notify external systems on backend state changes
-
-### 🚀 Long-term (Vision)
-
-- [ ] **Multi-tenant support** - Isolated backend sets per API key
-- [ ] **Federation** - Connect multiple gateways hierarchically
-- [ ] **Web-based config editor** - Visual configuration management
-- [ ] **Advanced analytics** - Tool usage patterns and performance metrics
+---
 
 ## 🤝 Contributing
 
@@ -707,6 +1000,200 @@ Contributions welcome! This is a community project to fill a genuine gap in the 
 ## 📜 License
 
 MIT - See [LICENSE](LICENSE) for details.
+
+---
+
+## 📦 Available MCP Servers
+
+Here are popular MCP servers you can use with mcp-gateway:
+
+### Official Servers
+
+| Server | Install | Description |
+|--------|---------|-------------|
+| **memory** | `npx -y @modelcontextprotocol/server-memory` | Persistent knowledge graph |
+| **filesystem** | `npx -y @modelcontextprotocol/server-filesystem /path` | File operations |
+| **github** | `npx -y @modelcontextprotocol/server-github` | GitHub API access |
+| **gitlab** | `npx -y @modelcontextprotocol/server-gitlab` | GitLab API access |
+| **postgres** | `npx -y @modelcontextprotocol/server-postgres` | PostgreSQL queries |
+| **sqlite** | `npx -y @modelcontextprotocol/server-sqlite` | SQLite operations |
+| **slack** | `npx -y @modelcontextprotocol/server-slack` | Slack integration |
+| **puppeteer** | `npx -y @modelcontextprotocol/server-puppeteer` | Browser automation |
+
+### Community Servers (uvx)
+
+| Server | Install | Description |
+|--------|---------|-------------|
+| **time** | `uvx mcp-server-time` | Time and timezone utilities |
+| **fetch** | `uvx mcp-server-fetch` | HTTP requests |
+| **weather** | `uvx mcp-server-weather` | Weather data |
+| **sequential-thinking** | `uvx mcp-server-sequential-thinking` | Step-by-step reasoning |
+
+### Example Configurations
+
+**Development Setup**:
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "npx -y @modelcontextprotocol/server-memory"
+    },
+    "time": {
+      "command": "uvx mcp-server-time --local-timezone=Europe/Berlin"
+    },
+    "filesystem": {
+      "command": "npx -y @modelcontextprotocol/server-filesystem /home/user/projects"
+    },
+    "fetch": {
+      "command": "uvx mcp-server-fetch"
+    }
+  }
+}
+```
+
+**With Database**:
+```json
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx -y @modelcontextprotocol/server-postgres",
+      "env": {
+        "DATABASE_URL": "postgresql://user:pass@localhost/db"
+      }
+    },
+    "sqlite": {
+      "command": "npx -y @modelcontextprotocol/server-sqlite /path/to/db.sqlite"
+    }
+  }
+}
+```
+
+**With GitHub**:
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx -y @modelcontextprotocol/server-github",
+      "env": {
+        "GITHUB_TOKEN": "ghp_xxxxxxxxxxxx"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 🖥️ Production Deployment
+
+### Systemd Service
+
+Create `/etc/systemd/system/mcp-gateway.service`:
+
+```ini
+[Unit]
+Description=MCP Gateway
+After=network.target
+
+[Service]
+Type=simple
+User=mcp-gateway
+Group=mcp-gateway
+WorkingDirectory=/opt/mcp-gateway
+Environment=PYTHONPATH=src
+ExecStart=/opt/mcp-gateway/.venv/bin/python -m mcp_gateway --config /opt/mcp-gateway/config.json
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable mcp-gateway
+sudo systemctl start mcp-gateway
+sudo systemctl status mcp-gateway
+```
+
+### Docker Deployment
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY . .
+RUN pip install -e "."
+
+EXPOSE 3000
+CMD ["mcp-gateway", "--host", "0.0.0.0", "--config", "/app/config.json"]
+```
+
+```bash
+docker build -t mcp-gateway .
+docker run -p 3000:3000 -v $(pwd)/config.json:/app/config.json mcp-gateway
+```
+
+---
+
+## 🤖 Senior Architect (SA) Integration
+
+This project includes integration with a local **Senior Python Developer & Architect (SA)** - a secondary AI model (Qwen3.5-35B) running via llama.cpp.
+
+### What is SA?
+
+The SA provides:
+- **Production-ready Python code** - No placeholders, working implementations
+- **Test-Driven Development (TDD)** - Complete test suites
+- **Architecture consulting** - Design patterns, best practices, code reviews
+- **FastAPI, SQLAlchemy, Pydantic expertise**
+
+### Setup SA
+
+1. **Install llama.cpp**:
+   ```bash
+   git clone https://github.com/ggerganov/llama.cpp.git
+   cd llama.cpp
+   cmake -B build
+   cmake --build build --config Release
+   ```
+
+2. **Download a model** (e.g., Qwen3.5-35B-A3B):
+   ```bash
+   # Place model in llama.cpp/model/
+   ```
+
+3. **Install systemd service**:
+   ```bash
+   sudo cp llama-server-optimized.service /etc/systemd/system/llama-server.service
+   sudo systemctl daemon-reload
+   sudo systemctl enable llama-server
+   sudo systemctl start llama-server
+   ```
+
+4. **Register SA with Kimi CLI**:
+   ```bash
+   kimi mcp add sa /path/to/mcp-gateway/sa_wrapper.sh
+   ```
+
+### Using SA
+
+**Discussion Mode** (synchronous):
+```
+@sa_discuss question="Review this circuit breaker implementation"
+```
+
+**Task Mode** (asynchronous):
+```
+@sa_submit tasks=["Implement auth service with JWT", "Create test suite"]
+
+# Later...
+@sa_results
+```
+
+See [docs-internal/sa-usage-guide.md](docs-internal/sa-usage-guide.md) for complete documentation.
 
 ---
 
