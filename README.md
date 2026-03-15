@@ -993,6 +993,11 @@ Client ──MCP──► mcp-gateway ──MCP──► Servers
 - [ ] Dynamic tool discovery
 - [ ] Caching layer
 - [ ] Load balancing
+- [ ] WebSocket for live updates (Medium) - Replace polling with push
+- [ ] Log viewer in Web UI (Low) - View backend logs in browser
+- [ ] Tool testing in Web UI (Medium) - Test tools directly in admin
+- [ ] Backup/restore config (Low) - Export/import configurations
+- [ ] TLS/HTTPS support (Medium) - Built-in SSL certificates
 
 ---
 
