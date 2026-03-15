@@ -1,0 +1,28 @@
+#!/bin/bash
+# Commit message hook for conventional commits
+# Install with: git config core.hooksPath .githooks
+
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(head -n1 "$COMMIT_MSG_FILE")
+
+# Conventional commit pattern
+PATTERN="^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?: .+$"
+
+if ! echo "$COMMIT_MSG" | grep -qE "$PATTERN"; then
+    echo "❌ Invalid commit message format!"
+    echo ""
+    echo "Expected format: <type>(<scope>): <description>"
+    echo ""
+    echo "Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert"
+    echo ""
+    echo "Examples:"
+    echo "  feat(backends): add circuit breaker pattern"
+    echo "  fix(admin): prevent args loss when saving"
+    echo "  docs(readme): add docker deployment guide"
+    echo ""
+    echo "Your message: $COMMIT_MSG"
+    exit 1
+fi
+
+echo "✅ Commit message format valid!"
+exit 0

@@ -25,6 +25,7 @@ from .backends import BackendManager
 from .circuit_breaker import CircuitBreakerRegistry
 from .config import GatewayConfig, load_config
 from .hot_reload import HotReloadManager
+from .lockfile import LockfileManager, format_lock_error, format_port_error
 
 # Get structured logger
 from .logging_config import get_logger, setup_structured_logging
@@ -147,7 +148,10 @@ async def create_dependencies(
         raise
 
     if not backend_manager.backends:
-        raise RuntimeError("No backends connected. Exiting.")
+        logger.warning(
+            "No backends connected. Gateway will start anyway.",
+            help="Use admin dashboard or CLI to diagnose connection issues"
+        )
 
     # Setup process supervision
     supervisor: ProcessSupervisor | None = None
@@ -218,16 +222,16 @@ async def main_async() -> int:
     """Async main function with explicit dependency injection."""
     args = parse_args()
 
-    # Load configuration
+    # Load configuration (before lock to get port for error messages)
     config_path = Path(args.config)
     if not config_path.exists():
-        logger.error("Configuration file not found", path=str(config_path))
+        print(f"Configuration file not found: {config_path}", file=sys.stderr)
         return 1
 
     try:
         config = load_config(config_path)
     except Exception as e:
-        logger.error("Failed to load configuration", error=str(e))
+        print(f"Failed to load configuration: {e}", file=sys.stderr)
         return 1
 
     # Override config with CLI arguments
@@ -238,7 +242,16 @@ async def main_async() -> int:
     if args.log_level:
         config.log_level = args.log_level
 
-    # Setup logging
+    # Acquire lockfile to prevent multiple instances
+    lockfile = LockfileManager()
+    acquired, existing_pid = lockfile.acquire()
+    
+    if not acquired:
+        # Another instance is running
+        print(format_lock_error(config.port, existing_pid, lockfile.lock_path), file=sys.stderr)
+        return 1
+
+    # Setup logging (after lock acquired to avoid log conflicts)
     setup_structured_logging(
         log_level=config.log_level,
         json_format=not args.console_log,
@@ -365,6 +378,12 @@ async def main_async() -> int:
                     logger.info(f"Server task completed with result: {result}")
                 except asyncio.CancelledError:
                     logger.info("Server task was cancelled")
+                except OSError as e:
+                    # Handle port conflict
+                    if e.errno == 98:  # Address already in use
+                        print(format_port_error(config.port), file=sys.stderr)
+                        return 1
+                    raise
                 except Exception as e:
                     logger.error(f"Server task failed with exception: {e}", exc_info=True)
             elif task == shutdown_task:
@@ -414,6 +433,12 @@ async def main_async() -> int:
             pass
 
         logger.info("Goodbye!")
+        
+        # Release lockfile
+        try:
+            lockfile.release()
+        except Exception:
+            pass
 
     return 0
 

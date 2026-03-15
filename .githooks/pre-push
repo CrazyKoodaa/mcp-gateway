@@ -1,0 +1,22 @@
+#!/bin/bash
+# Pre-push hook for MCP Gateway
+# Install with: git config core.hooksPath .githooks
+
+echo "Running pre-push checks..."
+
+# Check if uv is available
+if ! command -v uv &> /dev/null; then
+    echo "Warning: uv not found. Skipping pre-push checks."
+    exit 0
+fi
+
+# Run tests (excluding manual tests)
+echo "Running tests..."
+uv run pytest tests/ --ignore=tests/manual -q
+if [ $? -ne 0 ]; then
+    echo "❌ Tests failed. Please fix before pushing."
+    exit 1
+fi
+
+echo "✅ Pre-push checks passed!"
+exit 0

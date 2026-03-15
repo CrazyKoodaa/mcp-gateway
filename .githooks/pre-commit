@@ -1,0 +1,40 @@
+#!/bin/bash
+# Pre-commit hook for MCP Gateway
+# Install with: git config core.hooksPath .githooks
+
+echo "Running pre-commit checks..."
+
+# Get list of staged Python files
+STAGED_PY_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.py$' || true)
+STAGED_JS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|html)$' || true)
+
+if [ -z "$STAGED_PY_FILES" ] && [ -z "$STAGED_JS_FILES" ]; then
+    echo "No Python or JS files staged. Skipping checks."
+    exit 0
+fi
+
+# Check if uv is available
+if ! command -v uv &> /dev/null; then
+    echo "Warning: uv not found. Skipping Python checks."
+    exit 0
+fi
+
+# Run ruff check on staged files only
+if [ -n "$STAGED_PY_FILES" ]; then
+    echo "Running ruff check..."
+    echo "$STAGED_PY_FILES" | xargs uv run ruff check --fix
+    if [ $? -ne 0 ]; then
+        echo "❌ Ruff check failed. Please fix the issues above."
+        exit 1
+    fi
+    
+    echo "Running ruff format check..."
+    echo "$STAGED_PY_FILES" | xargs uv run ruff format --check
+    if [ $? -ne 0 ]; then
+        echo "❌ Format check failed. Run: uv run ruff format src tests"
+        exit 1
+    fi
+fi
+
+echo "✅ Pre-commit checks passed!"
+exit 0

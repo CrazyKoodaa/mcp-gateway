@@ -519,6 +519,28 @@ def main() -> None:
         help="List pending access requests",
     )
 
+    # Status command - show backend status
+    status_parser = subparsers.add_parser(
+        "status",
+        help="Show backend connection status and diagnostics",
+    )
+    status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output in JSON format",
+    )
+
+    # Diagnose command - detailed diagnostics
+    diagnose_parser = subparsers.add_parser(
+        "diagnose",
+        help="Run diagnostic check on all backends",
+    )
+    diagnose_parser.add_argument(
+        "backend",
+        nargs="?",
+        help="Specific backend to diagnose (optional)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "approve":
@@ -530,6 +552,10 @@ def main() -> None:
             asyncio.run(interactive_approve(args.api_url))
     elif args.command == "list":
         asyncio.run(list_requests(args.api_url))
+    elif args.command == "status":
+        asyncio.run(show_status(args.api_url, args.json))
+    elif args.command == "diagnose":
+        asyncio.run(run_diagnose(args.api_url, args.backend))
     else:
         parser.print_help()
 
@@ -549,6 +575,213 @@ async def list_requests(api_url: str) -> None:
 
     if not access_pending and not config_pending:
         print("📭 No pending requests.")
+
+
+async def get_health_status(api_url: str) -> dict[str, Any] | None:
+    """Get health status from the gateway."""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(f"{api_url}/health", timeout=10.0)
+            response.raise_for_status()
+            return response.json()  # type: ignore[return-value]
+        except httpx.HTTPError as e:
+            print(f"❌ Error connecting to MCP Gateway: {e}")
+            return None
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            return None
+
+
+async def get_servers_status(api_url: str) -> list[dict[str, Any]]:
+    """Get server list with connection status."""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(f"{api_url}/api/servers", timeout=10.0)
+            response.raise_for_status()
+            data = response.json()
+            return data.get("servers", [])  # type: ignore[return-value]
+        except Exception:
+            return []
+
+
+def print_status_table(health: dict[str, Any], servers: list[dict[str, Any]]) -> None:
+    """Print backend status in a formatted table."""
+    print("""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    MCP Gateway - Backend Status                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+""")
+    
+    # Gateway status
+    status = health.get("status", "unknown")
+    healthy = health.get("healthy", False)
+    total = health.get("total_backends", 0)
+    connected = health.get("connected_backends", 0)
+    failed = health.get("failed_backends", 0)
+    
+    status_icon = "✅" if healthy else "⚠️"
+    print(f"{status_icon} Gateway Status: {status.upper()}")
+    print(f"   Backends: {connected}/{total} connected", end="")
+    if failed > 0:
+        print(f" ({failed} failed)")
+    else:
+        print()
+    print()
+    
+    # Backends table
+    backends = health.get("backends", [])
+    if not backends:
+        print("📭 No backends configured.")
+        return
+    
+    # Header
+    print("─" * 80)
+    print(f"{'Backend':<20} {'Status':<12} {'Tools':<8} {'Type':<10} {'Error':<25}")
+    print("─" * 80)
+    
+    for backend in backends:
+        name = backend.get("name", "Unknown")
+        is_connected = backend.get("connected", False)
+        tools = backend.get("tools", 0)
+        backend_type = backend.get("type", "unknown")
+        
+        if is_connected:
+            status_str = "✅ OK"
+            error_str = "-"
+        else:
+            status_str = "❌ ERROR"
+            diagnostic = backend.get("diagnostic", {})
+            error_msg = diagnostic.get("error_message", "Connection failed")
+            error_str = error_msg[:24] if error_msg else "Unknown error"
+        
+        print(f"{name:<20} {status_str:<12} {tools:<8} {backend_type:<10} {error_str:<25}")
+    
+    print("─" * 80)
+    print()
+    
+    # Show fix tips for failed backends
+    failed_backends = [b for b in backends if not b.get("connected", False)]
+    if failed_backends:
+        print("💡 FIX TIPS:")
+        print()
+        for backend in failed_backends:
+            name = backend.get("name", "Unknown")
+            diagnostic = backend.get("diagnostic", {})
+            fix_tip = diagnostic.get("fix_tip", "Check server configuration")
+            print(f"   {name}:")
+            print(f"      → {fix_tip}")
+            print()
+
+
+async def show_status(api_url: str, json_output: bool = False) -> None:
+    """Show backend status."""
+    health = await get_health_status(api_url)
+    
+    if health is None:
+        sys.exit(1)
+    
+    if json_output:
+        import json
+        print(json.dumps(health, indent=2))
+        return
+    
+    servers = await get_servers_status(api_url)
+    print_status_table(health, servers)
+
+
+def print_diagnostic_detail(backend: dict[str, Any]) -> None:
+    """Print detailed diagnostic information for a backend."""
+    name = backend.get("name", "Unknown")
+    is_connected = backend.get("connected", False)
+    backend_type = backend.get("type", "unknown")
+    tools = backend.get("tools", 0)
+    
+    print(f"""
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Backend: {name:<64}│
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Status:      {"✅ CONNECTED" if is_connected else "❌ DISCONNECTED":<58}│
+│  Type:        {backend_type:<58}│
+│  Tools:       {tools:<58}│
+└─────────────────────────────────────────────────────────────────────────────┘""")
+    
+    if not is_connected:
+        diagnostic = backend.get("diagnostic", {})
+        error_msg = diagnostic.get("error_message", "Unknown error")
+        fix_tip = diagnostic.get("fix_tip", "Check server configuration")
+        attempts = diagnostic.get("connection_attempts", 0)
+        last_attempt = diagnostic.get("last_attempt")
+        
+        print(f"""
+⚠️  DIAGNOSTIC INFORMATION:
+
+   Error Message:
+      {error_msg}
+
+   Suggested Fix:
+      💡 {fix_tip}
+
+   Connection Attempts: {attempts}
+   Last Attempt: {last_attempt if last_attempt else "Never"}
+
+🔧 ACTIONABLE STEPS:
+   1. Check the server configuration in your config.json
+   2. Verify environment variables are set correctly
+   3. Ensure the backend service is running and accessible
+   4. Use 'mcp-gateway edit {name}' to modify configuration
+   5. Restart the gateway after making changes
+""")
+
+
+async def run_diagnose(api_url: str, backend_name: str | None = None) -> None:
+    """Run diagnostic check on backends."""
+    print("""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    MCP Gateway - Diagnostic Tool                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+""")
+    
+    health = await get_health_status(api_url)
+    
+    if health is None:
+        print("❌ Failed to connect to MCP Gateway.")
+        print("   Make sure the gateway is running on the specified URL.")
+        sys.exit(1)
+    
+    backends = health.get("backends", [])
+    
+    if not backends:
+        print("📭 No backends configured.")
+        return
+    
+    if backend_name:
+        # Diagnose specific backend
+        backend = next((b for b in backends if b.get("name") == backend_name), None)
+        if backend:
+            print_diagnostic_detail(backend)
+        else:
+            print(f"❌ Backend '{backend_name}' not found.")
+            print(f"   Available backends: {', '.join(b.get('name') for b in backends)}")
+            sys.exit(1)
+    else:
+        # Diagnose all backends
+        failed_backends = [b for b in backends if not b.get("connected", False)]
+        
+        if not failed_backends:
+            print("✅ All backends are connected and healthy!")
+            print()
+            print("Backend Summary:")
+            for backend in backends:
+                name = backend.get("name", "Unknown")
+                tools = backend.get("tools", 0)
+                print(f"   ✅ {name}: {tools} tools available")
+            return
+        
+        print(f"Found {len(failed_backends)} backend(s) with issues:\n")
+        
+        for backend in failed_backends:
+            print_diagnostic_detail(backend)
+            print("\n" + "=" * 80 + "\n")
 
 
 if __name__ == "__main__":

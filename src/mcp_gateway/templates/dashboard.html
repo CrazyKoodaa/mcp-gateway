@@ -439,6 +439,24 @@
             els.backendsTbody.innerHTML = backends.map(backend => {
                 const sup = supStats[backend.name] || {};
                 const status = sup.state || (backend.connected ? 'running' : 'stopped');
+                const hasDiagnostic = backend.diagnostic && backend.diagnostic.error_message;
+                
+                let diagnosticRow = '';
+                if (hasDiagnostic) {
+                    diagnosticRow = `
+                        <tr style="background: rgba(239, 68, 68, 0.05);">
+                            <td colspan="5" style="padding: 12px 20px; border-top: none;">
+                                <div style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem;">
+                                    <span style="color: #ef4444;">⚠️</span>
+                                    <div>
+                                        <div style="color: #ef4444;">${escapeHtml(backend.diagnostic.error_message)}</div>
+                                        <div style="color: #fbbf24; margin-top: 4px;">💡 ${escapeHtml(backend.diagnostic.fix_tip)}</div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }
                 
                 return `
                     <tr>
@@ -454,6 +472,7 @@
                             </div>
                         </td>
                     </tr>
+                    ${diagnosticRow}
                 `;
             }).join('');
         }

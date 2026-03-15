@@ -42,30 +42,60 @@ def _setup_health_routes(app: FastAPI, deps: ServerDependencies) -> None:
         description="Returns health status of the gateway and all backends",
     )
     async def health_check() -> dict[str, Any]:
-        """Health check endpoint."""
+        """Health check endpoint with diagnostic information."""
         backends: list[dict[str, object]] = []
-        for name, backend in deps.backend_manager.backends.items():
+        
+        # Get diagnostic info for all backends (connected and failed)
+        all_backends = deps.backend_manager.get_backend_diagnostics()
+        
+        for backend_diag in all_backends:
+            name = str(backend_diag["name"])
+            is_connected = bool(backend_diag["connected"])
+            
             cb_stats: dict[str, object] = {"state": "CLOSED"}
             if deps.circuit_breaker_registry:
                 cb = deps.circuit_breaker_registry.get(name)
                 if cb:
                     cb_stats = cb.get_stats()
 
-            backends.append(
-                {
-                    "name": name,
-                    "connected": backend.is_connected,
-                    "tools": len(backend.tools),
-                    "type": "stdio" if backend.config.is_stdio else "remote",
-                    "circuit_breaker_state": cb_stats.get("state", "CLOSED"),
-                }
-            )
+            # Get backend config for type info
+            backend_config = deps.config_manager.gateway_config.servers.get(name)
+            backend_type = "stdio"
+            if backend_config:
+                backend_type = "remote" if backend_config.url else "stdio"
 
+            backend_info: dict[str, object] = {
+                "name": name,
+                "connected": is_connected,
+                "tools": int(backend_diag.get("tools", 0)),
+                "type": backend_type,
+                "circuit_breaker_state": cb_stats.get("state", "CLOSED"),
+                "status": "connected" if is_connected else "error",
+            }
+            
+            # Add diagnostic info for failed backends
+            if not is_connected and backend_diag.get("diagnostic"):
+                diag = backend_diag["diagnostic"]
+                backend_info["diagnostic"] = {
+                    "error_message": diag.get("error_message", "Connection failed"),
+                    "fix_tip": diag.get("fix_tip", "Check server configuration"),
+                    "connection_attempts": backend_diag.get("connection_attempts", 0),
+                    "last_attempt": diag.get("last_attempt"),
+                }
+            
+            backends.append(backend_info)
+
+        connected_count = sum(1 for b in backends if b["connected"])
+        
+        # Gateway is healthy if at least one backend is connected OR no backends configured
+        is_healthy = connected_count > 0 or len(backends) == 0
+        
         return {
-            "status": "healthy",
-            "healthy": True,
+            "status": "healthy" if is_healthy else "degraded",
+            "healthy": is_healthy,
             "total_backends": len(backends),
-            "connected_backends": sum(1 for b in backends if b["connected"]),
+            "connected_backends": connected_count,
+            "failed_backends": len(backends) - connected_count,
             "total_tools": int(sum(b["tools"] for b in backends)),
             "backends": backends,
         }
@@ -149,7 +179,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         summary="List all servers",
     )
     async def list_servers() -> dict[str, list[dict[str, Any]]]:
-        """List all configured MCP servers."""
+        """List all configured MCP servers with connection status and diagnostics."""
         if not deps.config_manager:
             raise HTTPException(
                 status_code=503, detail="Config management not available"
@@ -159,20 +189,33 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         for name, server in deps.config_manager.gateway_config.servers.items():
             backend = deps.backend_manager.backends.get(name)
             available_tools: list[str] = []
-            if backend and backend.is_connected:
-                available_tools = [tool.name for tool in backend.tools]
-
-            servers.append(
-                {
-                    "name": name,
-                    "command": server.command,
-                    "args": server.args,
-                    "url": server.url,
-                    "type": server.type,
-                    "disabledTools": server.disabled_tools,
-                    "availableTools": available_tools,
-                }
-            )
+            server_info: dict[str, Any] = {
+                "name": name,
+                "command": server.command,
+                "args": server.args,
+                "url": server.url,
+                "type": server.type,
+                "disabledTools": server.disabled_tools,
+                "availableTools": available_tools,
+                "connectionStatus": "unknown",
+            }
+            
+            if backend:
+                if backend.is_connected:
+                    available_tools = [tool.name for tool in backend.tools]
+                    server_info["availableTools"] = available_tools
+                    server_info["connectionStatus"] = "connected"
+                else:
+                    server_info["connectionStatus"] = "error"
+                    # Add diagnostic info for failed connections
+                    if backend.last_error:
+                        server_info["diagnostic"] = {
+                            "error": backend.last_error,
+                            "fixTip": backend.diagnostic_tip,
+                            "attempts": backend.connection_attempts,
+                        }
+            
+            servers.append(server_info)
 
         return {"servers": servers}
 
@@ -225,6 +268,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         logger.info(
             f"Update server request for '{name}' with args: {config.get('args', [])}"
         )
+        logger.debug(f"Full config received: {config}")
 
         # Validate
         is_valid, error = validate_server_config(config)
@@ -251,6 +295,12 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
                 change_type="modify",
                 original_config=original_config,
                 new_config=config,
+            )
+            logger.info(
+                f"Config approval check for '{name}': "
+                f"requires_approval={result.requires_approval}, "
+                f"safe_paths={result.safe_paths}, "
+                f"pending={len(result.pending_requests)}"
             )
 
             if result.error:
@@ -479,7 +529,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         if not deps.access_control:
             return {"grants": []}
         
-        grants = deps.access_control.get_active_grants()
+        grants = await deps.access_control.get_active_grants()
         return {
             "grants": [
                 {
@@ -622,7 +672,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         if not deps.access_control:
             raise HTTPException(status_code=503, detail="Access control service not available")
         
-        success, message = await deps.access_control.revoke_config_grant(grant_id)
+        success, message = await deps.access_control.revert_config_change(grant_id)
         
         if not success:
             raise HTTPException(status_code=404, detail=message)

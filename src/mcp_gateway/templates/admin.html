@@ -850,6 +850,18 @@
                     </div>
                 </div>
                 
+                <!-- Environment Variables Section (Shared for both stdio and remote) -->
+                <div class="form-group" style="margin-top: 20px;">
+                    <h3 style="font-size: 1rem; color: #94a3b8; margin-bottom: 12px;">🔐 Environment Variables</h3>
+                    <div class="help-text" style="margin-bottom: 8px;">
+                        Add environment variables for the server (e.g., SEARXNG_URL=http://192.168.2.109:8888, API_KEY=secret)
+                    </div>
+                    <div id="env-list" class="dynamic-inputs">
+                        <!-- Dynamic environment variable fields will be added here -->
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-small" onclick="addEnvField()" style="margin-top: 8px;">+ Add Environment Variable</button>
+                </div>
+                
                 <!-- Tools Section -->
                 <div id="tools-section" class="hidden">
                     <h3>🔧 Tools Configuration</h3>
@@ -976,15 +988,53 @@
                 const toolCount = (server.availableTools || []).length;
                 const disabledCount = (server.disabledTools || []).length;
                 
+                // Determine connection status
+                const isConnected = server.connectionStatus === 'connected' || toolCount > 0;
+                const hasError = server.connectionStatus === 'error' || server.diagnostic;
+                
+                // Status indicator
+                let statusIndicator = '';
+                if (isConnected) {
+                    statusIndicator = '<span style="color: #22c55e;">●</span>';
+                } else if (hasError) {
+                    statusIndicator = '<span style="color: #ef4444;">●</span>';
+                } else {
+                    statusIndicator = '<span style="color: #64748b;">●</span>';
+                }
+                
+                // Diagnostic info row (if error)
+                let diagnosticRow = '';
+                if (hasError && server.diagnostic) {
+                    diagnosticRow = `
+                        <tr class="diagnostic-row" style="background: rgba(239, 68, 68, 0.05);">
+                            <td colspan="5" style="padding: 12px 20px; border-top: none;">
+                                <div style="display: flex; align-items: flex-start; gap: 12px;">
+                                    <span style="color: #ef4444; font-size: 1.2rem;">⚠️</span>
+                                    <div style="flex: 1;">
+                                        <div style="color: #ef4444; font-weight: 500; margin-bottom: 4px;">
+                                            Error: ${escapeHtml(server.diagnostic.error || 'Connection failed')}
+                                        </div>
+                                        <div style="color: #fbbf24; font-size: 0.875rem;">
+                                            💡 Fix: ${escapeHtml(server.diagnostic.fixTip || 'Check server configuration')}
+                                        </div>
+                                        ${server.diagnostic.attempts ? `<div style="color: #64748b; font-size: 0.75rem; margin-top: 4px;">Attempts: ${server.diagnostic.attempts}</div>` : ''}
+                                    </div>
+                                    <button class="btn btn-secondary btn-small" onclick="editServer('${escapeHtml(server.name)}')">Fix Config</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }
+                
                 return `
-                    <tr>
-                        <td><strong>${escapeHtml(server.name)}</strong></td>
+                    <tr class="${hasError ? 'has-error' : ''}">
+                        <td>${statusIndicator} <strong>${escapeHtml(server.name)}</strong></td>
                         <td><span style="background: #334155; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;">${typeLabel}</span></td>
                         <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(displayValue)}</td>
                         <td>
                             ${toolCount > 0 
                                 ? `<span style="color: #22c55e;">${toolCount - disabledCount} enabled</span>${disabledCount > 0 ? ` <span style="color: #64748b;">(${disabledCount} disabled)</span>` : ''}`
-                                : '<span style="color: #64748b;">-</span>'
+                                : (hasError ? '<span style="color: #ef4444;">Failed</span>' : '<span style="color: #64748b;">-</span>')
                             }
                         </td>
                         <td>
@@ -994,6 +1044,7 @@
                             </div>
                         </td>
                     </tr>
+                    ${diagnosticRow}
                 `;
             }).join('');
         }
@@ -1008,6 +1059,9 @@
             
             // Clear args list
             clearArgsList();
+            
+            // Clear env vars list
+            clearEnvList();
             
             // Reset tool section
             document.getElementById('tools-section').classList.add('hidden');
@@ -1070,6 +1124,54 @@
             document.getElementById('args-list').innerHTML = '';
         }
         
+        // Environment Variable Management
+        function addEnvField(key = '', value = '') {
+            const envList = document.getElementById('env-list');
+            const index = envList.children.length;
+            
+            const div = document.createElement('div');
+            div.className = 'input-row';
+            div.dataset.envIndex = index;
+            
+            div.innerHTML = `
+                <input type="text" value="${escapeHtml(key)}" placeholder="KEY" class="env-key-input" style="flex: 0.4;">
+                <span style="color: #64748b;">=</span>
+                <input type="text" value="${escapeHtml(value)}" placeholder="value" class="env-value-input" style="flex: 0.6;">
+                <button type="button" class="btn-icon btn-remove" onclick="removeEnvField(${index})" title="Remove env var">−</button>
+            `;
+            envList.appendChild(div);
+        }
+        
+        function removeEnvField(index) {
+            const envRow = document.querySelector(`#env-list .input-row[data-env-index="${index}"]`);
+            if (envRow) {
+                envRow.remove();
+            }
+        }
+        
+        function collectEnvVars() {
+            const rows = document.querySelectorAll('#env-list .input-row');
+            const env = {};
+            
+            rows.forEach(row => {
+                const keyInput = row.querySelector('.env-key-input');
+                const valueInput = row.querySelector('.env-value-input');
+                
+                const key = keyInput.value.trim();
+                const value = valueInput.value.trim();
+                
+                if (key) {
+                    env[key] = value;
+                }
+            });
+            
+            return env;
+        }
+        
+        function clearEnvList() {
+            document.getElementById('env-list').innerHTML = '';
+        }
+        
         // Tool Management
         function isFilesystemServer(baseCommand, args) {
             const cmd = (baseCommand + ' ' + args.join(' ')).toLowerCase();
@@ -1102,15 +1204,15 @@
                 
                 currentTools = tools;
                 
-                if (tools.length === 0) {
-                    toolsListEl.innerHTML = '<div class="loading">No tools available. Server may not be connected or has no tools.</div>';
-                    return;
-                }
-                
-                // Check if this is a filesystem server
+                // Check if this is a filesystem server (always show folders for fs servers)
                 const server = servers.find(s => s.name === serverName);
                 const isFs = server && isFilesystemServer(server.command, server.args || []);
                 const folders = isFs && server ? parseFoldersFromArgs(server.args || []) : [];
+                
+                if (tools.length === 0 && !isFs) {
+                    toolsListEl.innerHTML = '<div class="loading">No tools available. Server may not be connected or has no tools.</div>';
+                    return;
+                }
                 
                 renderToolsList(tools, disabledTools, isFs, folders);
                 
@@ -1122,7 +1224,8 @@
         function renderToolsList(tools, disabledTools, isFilesystem, folders) {
             const toolsListEl = document.getElementById('tools-list');
             
-            if (tools.length === 0) {
+            // Always show filesystem folder management, even if server not connected
+            if (tools.length === 0 && !isFilesystem) {
                 toolsListEl.innerHTML = '<div class="loading">No tools found</div>';
                 return;
             }
@@ -1130,13 +1233,14 @@
             // Group tools if filesystem
             let html = '';
             
-            if (isFilesystem && folders.length > 0) {
-                // Show folder configuration first
+            if (isFilesystem) {
+                // Show folder configuration first (even if empty, to allow adding folders)
                 html += `<div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #1e293b;">`;
                 html += `<div style="font-weight: 600; margin-bottom: 12px; color: #60a5fa;">📁 Allowed Folders</div>`;
-                html += `<div class="help-text" style="margin-bottom: 12px;">The filesystem server can only access these folders:</div>`;
+                html += `<div class="help-text" style="margin-bottom: 12px;">The filesystem server can only access these folders. Type a path below or click "+ Add Folder" for more:</div>`;
                 html += `<div id="folders-list">`;
                 
+                // Render existing folders
                 folders.forEach((folder, index) => {
                     html += `
                         <div class="input-row" data-folder-index="${index}">
@@ -1146,34 +1250,47 @@
                     `;
                 });
                 
+                // Always render at least one empty input for filesystem servers
+                // so users can type directly without clicking "Add Folder"
+                if (folders.length === 0) {
+                    html += `
+                        <div class="input-row" data-folder-index="0">
+                            <input type="text" value="" placeholder="/path/to/folder" class="folder-input" data-original="">
+                            <button type="button" class="btn-icon btn-remove" onclick="removeFolder(0)" title="Remove folder">−</button>
+                        </div>
+                    `;
+                }
+                
                 html += `</div>`;
                 html += `<button type="button" class="btn btn-secondary btn-small" onclick="addFolder()" style="margin-top: 8px;">+ Add Folder</button>`;
                 html += `</div>`;
             }
             
-            // Show tools with toggles
-            html += `<div>`;
-            html += `<div style="font-weight: 600; margin-bottom: 12px; color: #60a5fa;">🔧 Tools</div>`;
-            
-            tools.forEach(tool => {
-                const toolName = typeof tool === 'object' ? tool.name : tool;
-                const isDisabled = disabledTools.includes(toolName);
+            // Show tools with toggles (if any)
+            if (tools.length > 0) {
+                html += `<div>`;
+                html += `<div style="font-weight: 600; margin-bottom: 12px; color: #60a5fa;">🔧 Tools</div>`;
                 
-                html += `
-                    <div class="tool-item ${isDisabled ? 'tool-disabled' : ''}" data-tool="${escapeHtml(toolName)}">
-                        <div class="tool-info">
-                            <div class="tool-name">${escapeHtml(toolName)}</div>
+                tools.forEach(tool => {
+                    const toolName = typeof tool === 'object' ? tool.name : tool;
+                    const isDisabled = disabledTools.includes(toolName);
+                    
+                    html += `
+                        <div class="tool-item ${isDisabled ? 'tool-disabled' : ''}" data-tool="${escapeHtml(toolName)}">
+                            <div class="tool-info">
+                                <div class="tool-name">${escapeHtml(toolName)}</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" ${!isDisabled ? 'checked' : ''} onchange="toggleTool('${escapeHtml(toolName)}', this.checked)">
+                                <span class="toggle-slider"></span>
+                                <span class="toggle-label">${isDisabled ? 'Disabled' : 'Enabled'}</span>
+                            </label>
                         </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" ${!isDisabled ? 'checked' : ''} onchange="toggleTool('${escapeHtml(toolName)}', this.checked)">
-                            <span class="toggle-slider"></span>
-                            <span class="toggle-label">${isDisabled ? 'Disabled' : 'Enabled'}</span>
-                        </label>
-                    </div>
-                `;
-            });
-            
-            html += `</div>`;
+                    `;
+                });
+                
+                html += `</div>`;
+            }
             
             toolsListEl.innerHTML = html;
         }
@@ -1212,8 +1329,52 @@
             }
         }
         
+        function debugDOMQuery(selector) {
+            const result = document.querySelectorAll(selector);
+            console.group(`🔍 DOM Query Debug: "${selector}"`);
+            console.log('Query Result:', result);
+            console.log('Length:', result.length);
+            if (result.length === 0) {
+                // Check if elements exist with different method
+                const allInputs = document.querySelectorAll('input');
+                const folderInputs = Array.from(allInputs).filter(el => 
+                    el.className && el.className.includes('folder-input')
+                );
+                console.log('Found by className check:', folderInputs.length);
+                if (folderInputs.length > 0) {
+                    console.log('Elements:', folderInputs.map(el => ({tag: el.tagName, class: el.className, val: el.value})));
+                }
+            }
+            console.groupEnd();
+            return result;
+        }
+        
+        async function getCurrentFoldersAsync(timeout = 3000) {
+            const startTime = Date.now();
+            
+            while (Date.now() - startTime < timeout) {
+                debugDOMQuery('.folder-input');
+                const inputs = document.querySelectorAll('.folder-input');
+                
+                if (inputs.length > 0) {
+                    const folders = Array.from(inputs)
+                        .map(input => input.value.trim())
+                        .filter(Boolean);
+                    console.log('📁 Found folders:', folders);
+                    return folders;
+                }
+                
+                console.log('⏳ Waiting for folder inputs...');
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            console.warn('⚠️ Timeout waiting for .folder-input elements');
+            return [];
+        }
+        
         function getCurrentFolders() {
             const inputs = document.querySelectorAll('.folder-input');
+            console.log('getCurrentFolders: found', inputs.length, 'inputs');
             return Array.from(inputs).map(input => input.value.trim()).filter(Boolean);
         }
         
@@ -1263,6 +1424,14 @@
                 }
             }
             
+            // Clear and populate environment variables (for both stdio and remote)
+            clearEnvList();
+            if (server.env && Object.keys(server.env).length > 0) {
+                Object.entries(server.env).forEach(([key, value]) => {
+                    addEnvField(key, value);
+                });
+            }
+            
             clearModalError();
             document.getElementById('server-modal').classList.add('active');
             
@@ -1272,6 +1441,7 @@
         
         // Save server
         async function saveServer() {
+            console.log('🔴 SAVE SERVER CLICKED - v2');
             clearModalError();
             
             const originalName = document.getElementById('original-name').value;
@@ -1293,8 +1463,13 @@
                 config.disabledTools = disabledStr ? disabledStr.split(',').map(s => s.trim()).filter(Boolean) : [];
             }
             
+            // Variables for debug logging (declared outside blocks)
+            let baseCommand = null;
+            let nonPathArgs = [];
+            let folders = [];
+            
             if (currentType === 'stdio') {
-                const baseCommand = document.getElementById('server-base-command').value.trim();
+                baseCommand = document.getElementById('server-base-command').value.trim();
                 
                 if (!baseCommand) {
                     showModalError('Command is required for stdio servers');
@@ -1302,7 +1477,7 @@
                 }
                 
                 // Collect non-path args from text fields (folders are managed separately)
-                let nonPathArgs = collectArgs().filter(arg => {
+                nonPathArgs = collectArgs().filter(arg => {
                     const trimmed = arg.trim();
                     return trimmed !== '' && 
                            !trimmed.startsWith('/') && 
@@ -1310,14 +1485,34 @@
                            !trimmed.startsWith('~/');
                 });
                 
-                // Get folders from the folder management UI
-                let args = [...nonPathArgs];
+                // Get folders from the folder management UI OR preserve original paths
+                // Only look for folders on filesystem servers
+                folders = [];
+                const isFsServer = isFilesystemServer(baseCommand, nonPathArgs);
+                console.log('DEBUG: toolsSectionVisible =', toolsSectionVisible, 'isFsServer =', isFsServer);
                 
-                // If editing filesystem server, add folders from tools section
-                if (isFilesystemServer(baseCommand, nonPathArgs) && toolsSectionVisible) {
-                    const folders = getCurrentFolders();
-                    args = [...nonPathArgs, ...folders];
+                if (isFsServer && toolsSectionVisible) {
+                    // Tools section is visible for filesystem server, get folders from UI
+                    console.log('Using async getCurrentFolders...');
+                    folders = await getCurrentFoldersAsync(3000);
+                    console.log('DEBUG: folders from getCurrentFoldersAsync():', folders);
+                } else if (isFsServer && originalName) {
+                    // Filesystem server but tools section not visible - preserve original paths
+                    const originalServer = servers.find(s => s.name === originalName);
+                    if (originalServer && originalServer.args) {
+                        folders = originalServer.args.filter(arg => {
+                            const trimmed = arg.trim();
+                            return trimmed.startsWith('/') || 
+                                   trimmed.startsWith('./') || 
+                                   trimmed.startsWith('~/');
+                        });
+                    }
+                } else {
+                    console.log('Not a filesystem server, skipping folder collection');
                 }
+                
+                // Combine non-path args with folders
+                const args = [...nonPathArgs, ...folders];
                 
                 config.command = baseCommand;
                 config.args = args;
@@ -1331,8 +1526,22 @@
                 config.type = document.getElementById('server-transport').value;
             }
             
+            // Collect environment variables
+            const envVars = collectEnvVars();
+            if (Object.keys(envVars).length > 0) {
+                config.env = envVars;
+            }
+            
             // Debug: Log what's being sent
-            console.log('Saving server config:', { name, config, args: config.args, folders: getCurrentFolders() });
+            console.log('DEBUG saveServer:', { 
+                name, 
+                currentType, 
+                toolsSectionVisible, 
+                baseCommand: baseCommand || 'N/A',
+                nonPathArgs: nonPathArgs || [],
+                foldersFromUI: folders || [],
+                finalArgs: config.args
+            });
             
             try {
                 if (originalName) {
