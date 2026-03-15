@@ -65,6 +65,9 @@ class AccessControlManager:
 
         # Backend restart callback for auto-revert
         self._backend_restart_callback: Callable[[str], Awaitable[None]] | None = None
+        
+        # Lock for thread-safe grant creation
+        self._grant_lock = asyncio.Lock()
 
         logger.info("AccessControlManager initialized")
 
@@ -702,6 +705,9 @@ class AccessControlManager:
 
         return True, f"Access granted for {duration_minutes} minutes", grant
 
+    # Alias for backward compatibility
+    grant_access = approve_request
+
     async def deny_request(self, code: str, denied_by: str = "cli") -> tuple[bool, str]:
         """Deny an access request by code."""
         code = code.upper().strip()
@@ -736,13 +742,130 @@ class AccessControlManager:
             if req.status == AccessRequestStatus.PENDING and req.expires_at > now
         ]
 
-    def get_active_grants(self) -> list[AccessGrant]:
-        """Get all active (non-expired) access grants."""
+    async def get_active_grants(self, server_name: str | None = None) -> list[AccessGrant]:
+        """Get all active (non-expired) access grants.
+        
+        Args:
+            server_name: Optional filter by server name (mcp_name)
+            
+        Returns:
+            List of active grants, optionally filtered by server
+        """
         now = datetime.now(UTC)
-        return [
+        grants = [
             grant for grant in self._grants.values()
             if grant.expires_at > now
         ]
+        if server_name:
+            grants = [g for g in grants if g.mcp_name == server_name]
+        return grants
+
+    async def grant_access(
+        self,
+        server_name: str,
+        user_id: str,
+        tool_name: str,
+        path: str,
+        duration_minutes: float = 1,
+    ) -> AccessGrant:
+        """Directly grant access without approval process.
+        
+        This creates an access grant immediately without requiring
+        a prior access request. Used for admin/CLI grants.
+        
+        If a grant for the same (server_name, tool_name, path) already exists,
+        the existing grant is returned (idempotent behavior).
+        
+        Args:
+            server_name: Name of the MCP server
+            user_id: ID of the user being granted access
+            tool_name: Name of the tool being granted
+            path: Path being granted access to
+            duration_minutes: How long the grant is valid (default 1 minute)
+            
+        Returns:
+            The created or existing AccessGrant
+        """
+        async with self._grant_lock:
+            now = datetime.now(UTC)
+            
+            # Check if an active grant already exists for this combination
+            existing_grant = self._find_active_grant(server_name, tool_name, path)
+            if existing_grant:
+                logger.debug(
+                    f"Returning existing grant for {server_name}/{tool_name}/{path}"
+                )
+                return existing_grant
+            
+            # Create the grant directly
+            grant = AccessGrant(
+                id=self._generate_id(),
+                request_id=self._generate_id(),  # Generate a dummy request ID
+                mcp_name=server_name,
+                tool_name=tool_name,
+                path=path,
+                granted_at=now,
+                expires_at=now + timedelta(minutes=duration_minutes),
+                duration_minutes=int(duration_minutes),
+                approved_by=user_id,
+            )
+            
+            # Store the grant
+            self._grants[grant.id] = grant
+            
+            # Index by MCP and path
+            if grant.mcp_name not in self._mcp_grants:
+                self._mcp_grants[grant.mcp_name] = set()
+            self._mcp_grants[grant.mcp_name].add(grant.id)
+            
+            path_key = self._normalize_path(grant.path)
+            if path_key not in self._path_grants:
+                self._path_grants[path_key] = set()
+            self._path_grants[path_key].add(grant.id)
+            
+            logger.info(
+                f"Direct access granted: {grant.mcp_name} can access {grant.path} "
+                f"for {duration_minutes}min (grant: {grant.id}, by: {user_id})"
+            )
+            
+            # Notify admin UI
+            self._notify("request_approved", {
+                "grant_id": grant.id,
+                "mcp_name": grant.mcp_name,
+                "tool_name": grant.tool_name,
+                "path": grant.path,
+                "duration_minutes": duration_minutes,
+                "expires_at": grant.expires_at.isoformat(),
+                "approved_by": user_id,
+                "direct_grant": True,
+            })
+            
+            return grant
+    
+    def _find_active_grant(
+        self, server_name: str, tool_name: str, path: str
+    ) -> AccessGrant | None:
+        """Find an active grant for the given combination.
+        
+        Args:
+            server_name: MCP server name
+            tool_name: Tool name
+            path: Path
+            
+        Returns:
+            Active grant if found, None otherwise
+        """
+        now = datetime.now(UTC)
+        path_key = self._normalize_path(path)
+        
+        # Check grants for this server
+        grant_ids = self._mcp_grants.get(server_name, set())
+        for grant_id in grant_ids:
+            grant = self._grants.get(grant_id)
+            if grant and grant.expires_at > now:
+                if grant.tool_name == tool_name and self._normalize_path(grant.path) == path_key:
+                    return grant
+        return None
 
     def get_request_by_code(self, code: str) -> AccessRequest | None:
         """Get a request by its approval code."""
@@ -808,29 +931,39 @@ class AccessControlManager:
                 "reason": "timeout",
             })
 
-        # Clean up expired grants
-        expired_grants = [
-            grant_id for grant_id, grant in self._grants.items()
-            if grant.expires_at < now
-        ]
-        for grant_id in expired_grants:
-            grant = self._grants[grant_id]
+        # Clean up expired grants (with lock for thread safety)
+        async with self._grant_lock:
+            expired_grants = [
+                grant_id for grant_id, grant in self._grants.items()
+                if grant.expires_at < now
+            ]
+            for grant_id in expired_grants:
+                grant = self._grants[grant_id]
 
-            # Remove from indexes
-            if grant.mcp_name in self._mcp_grants:
-                self._mcp_grants[grant.mcp_name].discard(grant_id)
+                # Remove from indexes
+                if grant.mcp_name in self._mcp_grants:
+                    self._mcp_grants[grant.mcp_name].discard(grant_id)
+                    # Clean up empty sets
+                    if not self._mcp_grants[grant.mcp_name]:
+                        del self._mcp_grants[grant.mcp_name]
 
-            path_key = self._normalize_path(grant.path)
-            if path_key in self._path_grants:
-                self._path_grants[path_key].discard(grant_id)
+                path_key = self._normalize_path(grant.path)
+                if path_key in self._path_grants:
+                    self._path_grants[path_key].discard(grant_id)
+                    # Clean up empty sets
+                    if not self._path_grants[path_key]:
+                        del self._path_grants[path_key]
 
-            logger.debug(f"Grant expired: {grant_id}")
-            self._notify("request_expired", {
-                "grant_id": grant_id,
-                "mcp_name": grant.mcp_name,
-                "path": grant.path,
-                "reason": "expired",
-            })
+                # Remove the grant itself
+                del self._grants[grant_id]
+
+                logger.debug(f"Grant expired and removed: {grant_id}")
+                self._notify("request_expired", {
+                    "grant_id": grant_id,
+                    "mcp_name": grant.mcp_name,
+                    "path": grant.path,
+                    "reason": "expired",
+                })
 
         # Clean up expired config change requests
         expired_config_codes = [

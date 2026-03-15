@@ -226,6 +226,20 @@ class PathSecurityService:
         results = self.check_paths(paths)
         return [r.path for r in results if r.is_sensitive]
 
+    def is_sensitive_path(self, path: str) -> bool:
+        """Check if a single path is sensitive.
+
+        Convenience method for backward compatibility.
+
+        Args:
+            path: The filesystem path to check
+
+        Returns:
+            True if the path is sensitive
+        """
+        result = self.check_path(path)
+        return result.is_sensitive
+
     @staticmethod
     def _normalize_path(path: str) -> str:
         """Normalize path for cross-platform comparison.

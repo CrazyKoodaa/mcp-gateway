@@ -44,6 +44,11 @@ class AccessGrant:
     expires_at: datetime
     duration_minutes: int
     approved_by: str  # "cli" or "web"
+    
+    @property
+    def server_name(self) -> str:
+        """Alias for mcp_name for backward compatibility."""
+        return self.mcp_name
 
 
 @dataclass

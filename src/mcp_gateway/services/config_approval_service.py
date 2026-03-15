@@ -7,6 +7,7 @@ auto-revert and race condition protection.
 import asyncio
 import hashlib
 import json
+import logging
 import secrets
 import string
 from collections.abc import Callable
@@ -17,6 +18,8 @@ from typing import Any, Protocol, TypeAlias
 
 from .audit_service import AuditService
 from .path_security_service import PathSecurityService
+
+logger = logging.getLogger(__name__)
 
 
 class ApprovalStatus(Enum):
@@ -230,6 +233,10 @@ class ConfigApprovalService:
     ) -> ApprovalResult:
         """Check if a config change requires approval."""
         self._ensure_cleanup_started()
+        logger.info(
+            f"[APPROVAL] Checking config change for server '{server_name}': {change_type}"
+        )
+
         """Check if a config change requires approval.
 
         Validates the config, detects sensitive paths, and creates
@@ -246,8 +253,12 @@ class ConfigApprovalService:
         """
         # Validate config first
         if self._config_validator:
+            logger.debug(f"[APPROVAL] Running config validation for '{server_name}'")
             is_valid, error_msg = self._config_validator.validate(new_config)
             if not is_valid:
+                logger.warning(
+                    f"[APPROVAL] Config validation failed for '{server_name}': {error_msg}"
+                )
                 return ApprovalResult(
                     requires_approval=False,
                     error=error_msg,
