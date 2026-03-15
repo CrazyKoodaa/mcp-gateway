@@ -1,0 +1,46 @@
+{
+  "gateway": {
+    "host": "127.0.0.1",
+    "port": 3000,
+    "logLevel": "INFO",
+    "enableNamespacing": true,
+    "namespaceSeparator": "__",
+    
+    "_comment_auth": "Optional: Enable API key authentication",
+    "apiKey": null,
+    "bearerToken": null,
+    "authExcludePaths": ["/health", "/metrics", "/docs", "/openapi.json"],
+    
+    "_comment_timeouts": "Connection and request timeouts in seconds",
+    "connectionTimeout": 30,
+    "requestTimeout": 60,
+    
+    "_comment_admin": "Admin panel credentials (for Web UI management)",
+    "adminUsername": "admin",
+    "adminPassword": null
+  },
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+    "time": {
+      "command": "uvx",
+      "args": ["mcp-server-time", "--local-timezone=Europe/Berlin"],
+      "disabledTools": ["convert_time"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/path/to/your/projects",
+        "/path/to/your/documents"
+      ]
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"]
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "gateway": {
+    "host": "0.0.0.0",
+    "port": 3000,
+    "logLevel": "INFO",
+    "enableNamespacing": true,
+    "namespaceSeparator": "__",
+    
+    "connectionTimeout": 30,
+    "requestTimeout": 60,
+    
+    "apiKey": "mg_prod_your_secure_api_key_here",
+    "authExcludePaths": ["/health", "/metrics", "/docs", "/openapi.json"]
+  },
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+    "time": {
+      "command": "uvx",
+      "args": ["mcp-server-time", "--local-timezone=Europe/Berlin"],
+      "disabledTools": ["convert_time"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/path/to/your/projects",
+        "/path/to/your/documents"
+      ]
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"]
+    }
+  }
+}

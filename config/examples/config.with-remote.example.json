@@ -1,0 +1,38 @@
+{
+  "gateway": {
+    "host": "127.0.0.1",
+    "port": 3000,
+    "logLevel": "INFO"
+  },
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+    "time": {
+      "command": "uvx",
+      "args": ["mcp-server-time", "--local-timezone=Europe/Berlin"],
+      "disabledTools": ["convert_time"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/path/to/your/projects",
+        "/path/to/your/documents"
+      ]
+    },
+    "remote-github": {
+      "type": "streamable-http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE"
+      }
+    },
+    "remote-sse-server": {
+      "type": "sse",
+      "url": "http://localhost:8001/sse"
+    }
+  }
+}
