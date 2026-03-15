@@ -3,23 +3,26 @@
 Provides the 'mcp-gateway approve' command for interactive access approval.
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import sys
+from typing import Any
 
 import httpx
 
 DEFAULT_API_URL = "http://127.0.0.1:3000"
 
 
-async def check_pending_requests(api_url: str) -> list[dict]:
+async def check_pending_requests(api_url: str) -> list[dict[str, Any]]:
     """Get list of pending access requests."""
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{api_url}/api/access/requests/pending", timeout=10.0)
             response.raise_for_status()
             data = response.json()
-            return data.get("requests", [])
+            return data.get("requests", [])  # type: ignore[return-value]
         except httpx.HTTPError as e:
             print(f"Error connecting to MCP Gateway: {e}")
             return []
@@ -28,14 +31,14 @@ async def check_pending_requests(api_url: str) -> list[dict]:
             return []
 
 
-async def check_pending_config_changes(api_url: str) -> list[dict]:
+async def check_pending_config_changes(api_url: str) -> list[dict[str, Any]]:
     """Get list of pending config change requests."""
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{api_url}/api/config-changes/pending", timeout=10.0)
             response.raise_for_status()
             data = response.json()
-            return data.get("requests", [])
+            return data.get("requests", [])  # type: ignore[return-value]
         except httpx.HTTPError as e:
             print(f"Error connecting to MCP Gateway: {e}")
             return []
@@ -44,7 +47,9 @@ async def check_pending_config_changes(api_url: str) -> list[dict]:
             return []
 
 
-async def approve_request(api_url: str, code: str, duration: int) -> dict:
+async def approve_request(
+    api_url: str, code: str, duration: int
+) -> dict[str, Any]:
     """Approve an access request by code."""
     async with httpx.AsyncClient() as client:
         try:
@@ -82,19 +87,25 @@ async def approve_config_change(api_url: str, code: str, duration: int) -> dict:
             return {"success": False, "error": str(e)}
 
 
-async def get_request_details(api_url: str, code: str) -> dict | None:
+async def get_request_details(
+    api_url: str, code: str
+) -> dict[str, Any] | None:
     """Get details of a specific access request."""
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(f"{api_url}/api/access/requests/{code}", timeout=10.0)
             if response.status_code == 200:
-                return response.json()
+                return response.json()  # type: ignore[return-value]
+            return None
+        except httpx.RequestError:
             return None
         except Exception:
             return None
 
 
-async def get_config_change_details(api_url: str, code: str) -> dict | None:
+async def get_config_change_details(
+    api_url: str, code: str
+) -> dict[str, Any] | None:
     """Get details of a specific config change request."""
     async with httpx.AsyncClient() as client:
         try:
@@ -103,13 +114,13 @@ async def get_config_change_details(api_url: str, code: str) -> dict | None:
                 data = response.json()
                 for req in data.get("requests", []):
                     if req.get("code") == code:
-                        return req
+                        return req  # type: ignore[return-value]
             return None
-        except Exception:
+        except httpx.RequestError:
             return None
 
 
-def print_banner():
+def print_banner() -> None:
     """Print the CLI banner."""
     print("""
 ╔══════════════════════════════════════════════════════════════╗
@@ -118,7 +129,7 @@ def print_banner():
 """)
 
 
-def print_pending_requests(requests: list[dict]):
+def print_pending_requests(requests: list[dict[str, Any]]) -> None:
     """Print pending access requests in a formatted way."""
     if not requests:
         print("📭 No pending access requests.")
@@ -144,7 +155,9 @@ def print_pending_requests(requests: list[dict]):
     print("─" * 60)
 
 
-def print_pending_config_changes(requests: list[dict]):
+def print_pending_config_changes(
+    requests: list[dict[str, Any]]
+) -> None:
     """Print pending config change requests in a formatted way."""
     if not requests:
         print("📭 No pending config change requests.")
@@ -172,7 +185,7 @@ def print_pending_config_changes(requests: list[dict]):
     print("─" * 60)
 
 
-async def interactive_approve(api_url: str):
+async def interactive_approve(api_url: str) -> None:
     """Interactive approval workflow for both access and config change requests."""
     print_banner()
 
@@ -249,7 +262,9 @@ async def interactive_approve(api_url: str):
             print(f"❌ Code '{user_input}' not found or expired.")
 
 
-async def handle_access_approval(api_url: str, code: str, req: dict):
+async def handle_access_approval(
+    api_url: str, code: str, req: dict[str, Any]
+) -> None:
     """Handle approval of an access request."""
     # Show request details
     print(f"""
@@ -311,11 +326,13 @@ async def handle_access_approval(api_url: str, code: str, req: dict):
         print(f"\n❌ Approval failed: {result.get('error', 'Unknown error')}")
 
 
-async def handle_config_change_approval(api_url: str, code: str, req: dict):
+async def handle_config_change_approval(
+    api_url: str, code: str, req: dict[str, Any]
+) -> None:
     """Handle approval of a config change request."""
-    server_name = req.get('server_name', 'Unknown')
-    change_type = req.get('change_type', 'Unknown')
-    sensitive_paths = req.get('sensitive_paths', [])
+    server_name = req.get("server_name", "Unknown")
+    change_type = req.get("change_type", "Unknown")
+    sensitive_paths = req.get("sensitive_paths", [])  # type: ignore[assignment]
 
     # Show request details
     paths_str = ", ".join(sensitive_paths) if sensitive_paths else "N/A"
@@ -382,7 +399,9 @@ async def handle_config_change_approval(api_url: str, code: str, req: dict):
         print(f"\n❌ Approval failed: {result.get('error', 'Unknown error')}")
 
 
-async def quick_approve(api_url: str, code: str, duration: int = 1):
+async def quick_approve(
+    api_url: str, code: str, duration: int = 1
+) -> None:
     """Quick approve with code provided as argument."""
     print_banner()
 
@@ -394,7 +413,7 @@ async def quick_approve(api_url: str, code: str, duration: int = 1):
 
     # Try to get request details (check access request first, then config change)
     req = await get_request_details(api_url, code)
-    if req:
+    if req is not None:
         # It's an access request
         print(f"""
 ┌─────────────────────────────────────────────────────────────┐
@@ -425,9 +444,9 @@ async def quick_approve(api_url: str, code: str, duration: int = 1):
     else:
         # Check if it's a config change request
         config_req = await get_config_change_details(api_url, code)
-        if config_req:
-            server_name = config_req.get('server_name', 'Unknown')
-            sensitive_paths = config_req.get('sensitive_paths', [])
+        if config_req is not None:
+            server_name = config_req.get("server_name", "Unknown")
+            sensitive_paths = config_req.get("sensitive_paths", [])
             paths_str = ", ".join(sensitive_paths) if sensitive_paths else "N/A"
 
             print(f"""
@@ -462,7 +481,7 @@ async def quick_approve(api_url: str, code: str, duration: int = 1):
             sys.exit(1)
 
 
-def main():
+def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="mcp-gateway",
@@ -515,7 +534,7 @@ def main():
         parser.print_help()
 
 
-async def list_requests(api_url: str):
+async def list_requests(api_url: str) -> None:
     """List all pending requests (both access and config change)."""
     print_banner()
 

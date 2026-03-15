@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from collections.abc import AsyncGenerator, Generator
 from typing import Any
 
 import structlog
@@ -113,12 +114,14 @@ class RequestContext:
         self.token = structlog.contextvars.bind_contextvars(**self.context)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
         structlog.contextvars.unbind_contextvars(*self.context.keys())
         return False
 
 
-async def async_request_context(**context: Any):
+def async_request_context(
+    **context: Any,
+) -> AsyncGenerator[None, None]:
     """Async context manager for request-bound logging.
 
     Example:

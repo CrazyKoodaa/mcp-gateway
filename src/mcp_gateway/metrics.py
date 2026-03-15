@@ -49,7 +49,10 @@ except ImportError:
         def info(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-    Counter = Gauge = Histogram = Info = _DummyMetric
+    Counter: type[_DummyMetric] = _DummyMetric  # type: ignore[assignment]
+    Gauge: type[_DummyMetric] = _DummyMetric  # type: ignore[assignment]
+    Histogram: type[_DummyMetric] = _DummyMetric  # type: ignore[assignment]
+    Info: type[_DummyMetric] = _DummyMetric  # type: ignore[assignment]
 
     def _generate_latest() -> bytes:
         return b""
@@ -314,21 +317,29 @@ def get_collector() -> MetricsCollector:
 
 # Export _DummyMetric for tests (conditionally available)
 if not PROMETHEUS_AVAILABLE:
-    DummyMetricExport = _DummyMetric
+    DummyMetricExport = _DummyMetric  # type: ignore[assignment]
 else:
     # Create a dummy class for testing when prometheus IS available
     class DummyMetricExport:
         """Dummy metric class for tests."""
+
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
-        def labels(self, *args: Any, **kwargs: Any) -> DummyMetricExport:
+
+        def labels(
+            self, *args: Any, **kwargs: Any
+        ) -> DummyMetricExport:
             return self
+
         def inc(self, *args: Any, **kwargs: Any) -> None:
             pass
+
         def set(self, *args: Any, **kwargs: Any) -> None:
             pass
+
         def observe(self, *args: Any, **kwargs: Any) -> None:
             pass
+
         def info(self, *args: Any, **kwargs: Any) -> None:
             pass
 

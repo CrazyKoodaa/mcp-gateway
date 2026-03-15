@@ -1,5 +1,7 @@
 """Hot reload functionality for configuration changes."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -28,22 +30,22 @@ class ConfigChange:
 
     action: str  # 'added', 'removed', 'modified'
     server_name: str
-    old_config: dict | None = None
-    new_config: dict | None = None
+    old_config: dict[str, Any] | None = None
+    new_config: dict[str, Any] | None = None
 
 
 class ConfigFileHandler(FileSystemEventHandler if WATCHDOG_AVAILABLE else object):
     """Handler for config file change events."""
 
-    def __init__(self, callback: Callable[[], None]):
+    def __init__(self, callback: Callable[[], Awaitable[None]]) -> None:
         super().__init__()
         self.callback = callback
-        self._last_modified = 0
-        self._debounce_seconds = 1.0
+        self._last_modified: float = 0
+        self._debounce_seconds: float = 1.0
 
-    def on_modified(self, event):
+    def on_modified(self, event: FileModifiedEvent | None) -> None:
         """Called when config file is modified."""
-        if event.is_directory:
+        if event is None or event.is_directory:
             return
 
         # Debounce rapid changes using time.time() (not asyncio)
@@ -66,7 +68,7 @@ class ConfigFileHandler(FileSystemEventHandler if WATCHDOG_AVAILABLE else object
                 # No running loop, just call directly
                 pass
 
-    def _schedule_callback(self):
+    def _schedule_callback(self) -> None:
         """Schedule the async callback safely."""
         try:
             asyncio.get_running_loop()
@@ -74,7 +76,7 @@ class ConfigFileHandler(FileSystemEventHandler if WATCHDOG_AVAILABLE else object
         except RuntimeError:
             logger.warning("No event loop running, cannot schedule callback")
 
-    async def _invoke_callback(self):
+    async def _invoke_callback(self) -> None:
         """Invoke callback with debounce."""
         await asyncio.sleep(self._debounce_seconds)
         if self.callback:
@@ -90,19 +92,19 @@ class ConfigWatcher:
         reload_callback: Callable[[], Awaitable[None]],
         use_polling: bool = False,
         poll_interval: float = 5.0,
-    ):
+    ) -> None:
         self.config_path = Path(config_path)
         self.reload_callback = reload_callback
         self.use_polling = use_polling or not WATCHDOG_AVAILABLE
         self.poll_interval = poll_interval
 
         self._observer: Any | None = None
-        self._polling_task: asyncio.Task | None = None
+        self._polling_task: asyncio.Task[None] | None = None
         self._last_mtime: float = 0
         self._running = False
 
         # Store last known config for diffing
-        self._last_config: dict = {}
+        self._last_config: dict[str, Any] = {}
 
         # Flag to temporarily disable reloads (when server saves config)
         self._reload_disabled = False
@@ -333,9 +335,9 @@ class HotReloadManager:
         self,
         config_path: str | Path,
         backend_manager: Any,
-        config_loader: Callable[[str], Any],
-        reconnect_callback: Callable[[Any], Awaitable[None]],
-    ):
+        config_loader: Callable[[str], dict[str, Any]],
+        reconnect_callback: Callable[[dict[str, Any]], Awaitable[None]],
+    ) -> None:
         self.config_path = Path(config_path)
         self.backend_manager = backend_manager
         self.config_loader = config_loader
@@ -370,7 +372,7 @@ class HotReloadManager:
                 logger.info("Reloading configuration...")
 
                 # Load new config
-                new_config = self.config_loader(self.config_path)
+                new_config = self.config_loader(str(self.config_path))
 
                 # Disconnect old backends
                 await self.backend_manager.disconnect_all()
