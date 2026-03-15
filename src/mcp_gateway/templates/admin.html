@@ -1085,17 +1085,25 @@
         
         async function loadToolsForServer(serverName) {
             const toolsListEl = document.getElementById('tools-list');
+            console.log(`[Admin] Loading tools for server: ${serverName}`);
             
             try {
                 // Get available tools from backend if connected
-                const response = await apiGet(`/api/servers/${encodeURIComponent(serverName)}/tools`);
+                const url = `/api/servers/${encodeURIComponent(serverName)}/tools`;
+                console.log(`[Admin] Fetching from: ${url}`);
+                
+                const response = await apiGet(url);
+                console.log(`[Admin] Tools response:`, response);
+                
                 const tools = response.tools || [];
                 const disabledTools = response.disabledTools || [];
+                
+                console.log(`[Admin] Found ${tools.length} tools, ${disabledTools.length} disabled`);
                 
                 currentTools = tools;
                 
                 if (tools.length === 0) {
-                    toolsListEl.innerHTML = '<div class="loading">No tools available. Server may not be connected.</div>';
+                    toolsListEl.innerHTML = '<div class="loading">No tools available. Server may not be connected or has no tools.</div>';
                     return;
                 }
                 

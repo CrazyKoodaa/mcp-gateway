@@ -460,16 +460,41 @@
         
         // Update tools list
         function updateTools(backends) {
+            console.log('[Dashboard] updateTools called with:', backends);
+            
             const allBackends = backends.backends || [];
+            console.log(`[Dashboard] Processing ${allBackends.length} backends for tools display`);
             
             if (allBackends.length === 0) {
                 els.toolsContainer.innerHTML = '<div class="empty-state">No backends connected</div>';
                 return;
             }
             
+            // Check if any backend has tools
+            const totalTools = allBackends.reduce((sum, b) => sum + (b.tools_list?.length || 0), 0);
+            console.log(`[Dashboard] Total tools across all backends: ${totalTools}`);
+            
+            if (totalTools === 0) {
+                els.toolsContainer.innerHTML = '<div class="empty-state">No tools available. Backends may still be initializing...</div>';
+                return;
+            }
+            
             // Group tools by backend
             const html = allBackends.map(backend => {
                 const tools = backend.tools_list || [];
+                console.log(`[Dashboard] Backend ${backend.name} has ${tools.length} tools`);
+                
+                if (tools.length === 0) {
+                    return `
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="color: #94a3b8; font-size: 0.875rem; margin-bottom: 8px;">
+                                ${escapeHtml(backend.name)} (0 tools)
+                            </h3>
+                            <div style="color: #64748b; font-size: 0.75rem;">No tools loaded</div>
+                        </div>
+                    `;
+                }
+                
                 return `
                     <div style="margin-bottom: 20px;">
                         <h3 style="color: #94a3b8; font-size: 0.875rem; margin-bottom: 8px;">
@@ -478,14 +503,15 @@
                         <div>
                             ${tools.map(tool => {
                                 const toolName = typeof tool === 'object' ? tool.name : tool;
-                                return `<span class="tool-tag">${escapeHtml(toolName)}</span>`;
+                                const toolDesc = typeof tool === 'object' ? tool.description : '';
+                                return `<span class="tool-tag" title="${escapeHtml(toolDesc)}">${escapeHtml(toolName)}</span>`;
                             }).join('')}
                         </div>
                     </div>
                 `;
             }).join('');
             
-            els.toolsContainer.innerHTML = html || '<div class="empty-state">No tools available</div>';
+            els.toolsContainer.innerHTML = html;
         }
         
         // Update supervision status
@@ -534,6 +560,7 @@
         // Refresh all data
         async function refreshData() {
             els.spinner.style.display = 'block';
+            console.log('[Dashboard] Starting refresh...');
             
             try {
                 // Fetch all data in parallel
@@ -543,19 +570,30 @@
                     apiGet('/backends'),
                 ]);
                 
+                console.log('[Dashboard] Health:', health);
+                console.log('[Dashboard] Backends:', backends);
+                
                 // Fetch tools for each backend
+                const backendList = backends.backends || [];
+                console.log(`[Dashboard] Found ${backendList.length} backends`);
+                
                 const backendsWithTools = await Promise.all(
-                    (backends.backends || []).map(async backend => {
+                    backendList.map(async backend => {
                         try {
-                            const toolsRes = await apiGet(`/api/servers/${encodeURIComponent(backend.name)}/tools`);
+                            const toolsUrl = `/api/servers/${encodeURIComponent(backend.name)}/tools`;
+                            console.log(`[Dashboard] Fetching tools from: ${toolsUrl}`);
+                            const toolsRes = await apiGet(toolsUrl);
+                            console.log(`[Dashboard] Tools for ${backend.name}:`, toolsRes);
                             return { ...backend, tools_list: toolsRes.tools || [] };
-                        } catch {
+                        } catch (err) {
+                            console.error(`[Dashboard] Failed to fetch tools for ${backend.name}:`, err);
                             return { ...backend, tools_list: [] };
                         }
                     })
                 );
                 
                 backends.backends = backendsWithTools;
+                console.log('[Dashboard] Backends with tools:', backends);
                 
                 // Update UI
                 updateStats(health);
@@ -568,6 +606,7 @@
                 els.lastUpdated.textContent = `Last updated: ${now.toLocaleTimeString()}`;
                 
             } catch (error) {
+                console.error('[Dashboard] Refresh failed:', error);
                 showError(`Failed to refresh data: ${error.message}`);
             } finally {
                 els.spinner.style.display = 'none';
