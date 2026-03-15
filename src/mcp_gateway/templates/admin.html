@@ -1,0 +1,1844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Gateway Admin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .nav {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .nav a {
+            color: #94a3b8;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .nav a:hover {
+            color: #f8fafc;
+            background: #334155;
+        }
+        
+        .nav a.active {
+            color: #60a5fa;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        .section {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid #334155;
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        h2 {
+            font-size: 1.25rem;
+            color: #f8fafc;
+        }
+        
+        h3 {
+            font-size: 1rem;
+            color: #94a3b8;
+            margin: 20px 0 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        .btn-primary:hover { background: #2563eb; }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        .btn-danger:hover { background: #dc2626; }
+        
+        .btn-secondary {
+            background: #334155;
+            color: #e2e8f0;
+        }
+        .btn-secondary:hover { background: #475569; }
+        
+        .btn-success {
+            background: #22c55e;
+            color: white;
+        }
+        .btn-success:hover { background: #16a34a; }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #334155;
+        }
+        
+        th {
+            font-weight: 600;
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
+        
+        tr:hover {
+            background: #252f47;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.75rem;
+        }
+        
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 24px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid #334155;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        
+        .close-btn:hover {
+            color: #f8fafc;
+        }
+        
+        /* Form */
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #94a3b8;
+        }
+        
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 0.875rem;
+        }
+        
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+            font-family: monospace;
+        }
+        
+        .help-text {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 4px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .success-message {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid #22c55e;
+            color: #22c55e;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .server-type-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        
+        .type-option {
+            flex: 1;
+            padding: 12px;
+            background: #0f172a;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .type-option:hover {
+            border-color: #475569;
+        }
+        
+        .type-option.active {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        .type-option h4 {
+            margin-bottom: 4px;
+            color: #f8fafc;
+        }
+        
+        .type-option p {
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        /* Toggle Switch */
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+        
+        .toggle-switch input {
+            display: none;
+        }
+        
+        .toggle-slider {
+            width: 44px;
+            height: 24px;
+            background: #334155;
+            border-radius: 12px;
+            position: relative;
+            transition: background 0.3s;
+        }
+        
+        .toggle-slider::after {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            background: white;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: transform 0.3s;
+        }
+        
+        .toggle-switch input:checked + .toggle-slider {
+            background: #22c55e;
+        }
+        
+        .toggle-switch input:checked + .toggle-slider::after {
+            transform: translateX(20px);
+        }
+        
+        .toggle-label {
+            font-size: 0.875rem;
+            color: #e2e8f0;
+        }
+        
+        /* Tool List */
+        .tool-list {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+        
+        .tool-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid #1e293b;
+        }
+        
+        .tool-item:last-child {
+            border-bottom: none;
+        }
+        
+        .tool-info {
+            flex: 1;
+        }
+        
+        .tool-name {
+            font-weight: 500;
+            color: #f8fafc;
+            margin-bottom: 4px;
+        }
+        
+        .tool-description {
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+        
+        .tool-disabled {
+            opacity: 0.5;
+        }
+        
+        .tool-disabled .tool-name {
+            text-decoration: line-through;
+            color: #64748b;
+        }
+        
+        /* Dynamic Inputs (for folders, etc) */
+        .dynamic-inputs {
+            margin-top: 12px;
+            padding-left: 54px;
+        }
+        
+        .input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .input-row input {
+            flex: 1;
+            background: #1e293b;
+            border: 1px solid #334155;
+            padding: 8px 12px;
+            border-radius: 6px;
+            color: #e2e8f0;
+        }
+        
+        .input-row input:disabled {
+            opacity: 0.5;
+            background: #0f172a;
+        }
+        
+        .input-row input.path-arg {
+            border-left: 3px solid #60a5fa;
+            background: rgba(96, 165, 250, 0.1);
+        }
+        
+        .btn-icon {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+        
+        .btn-add {
+            background: #22c55e;
+            color: white;
+        }
+        
+        .btn-remove {
+            background: #ef4444;
+            color: white;
+        }
+        
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #64748b;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #334155;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .actions {
+                flex-direction: column;
+            }
+            
+            .tool-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+        }
+        
+        /* Access Control Styles */
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .status-connected {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+        
+        .status-error {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        .access-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .access-item {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        
+        .access-item:hover {
+            border-color: #475569;
+        }
+        
+        .access-item.pending {
+            border-left: 4px solid #f59e0b;
+        }
+        
+        .access-item.granted {
+            border-left: 4px solid #22c55e;
+        }
+        
+        .access-info {
+            flex: 1;
+        }
+        
+        .access-code {
+            font-family: 'Courier New', monospace;
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+            padding: 4px 12px;
+            border-radius: 6px;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+        
+        .access-path {
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            color: #60a5fa;
+            word-break: break-all;
+        }
+        
+        .access-meta {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 4px;
+        }
+        
+        .access-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .access-empty {
+            text-align: center;
+            padding: 40px;
+            color: #64748b;
+        }
+        
+        .countdown {
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.75rem;
+        }
+        
+        .btn-approve {
+            background: #22c55e;
+            color: white;
+        }
+        
+        .btn-approve:hover {
+            background: #16a34a;
+        }
+        
+        .btn-deny {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-deny:hover {
+            background: #dc2626;
+        }
+        
+        .btn-revoke {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .btn-revoke:hover {
+            background: #d97706;
+        }
+        
+        .duration-select {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+        
+        code {
+            background: #0f172a;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            color: #a78bfa;
+        }
+        
+        .sensitive-path {
+            background: #7f1d1d;
+            color: #fca5a5;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔧 MCP Gateway Admin</h1>
+            <p style="color: #94a3b8;">Manage MCP server configurations</p>
+            <nav class="nav">
+                <a href="/">Dashboard</a>
+                <a href="/admin" class="active">Admin</a>
+            </nav>
+        </header>
+        
+        <div id="message-container"></div>
+        
+        <div class="section">
+            <div class="section-header">
+                <h2>MCP Servers</h2>
+                <button class="btn btn-primary" onclick="openAddModal()">+ Add Server</button>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Command/URL</th>
+                        <th>Tools</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="servers-tbody">
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 40px; color: #64748b;">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="section">
+            <div class="section-header">
+                <h2>Configuration Actions</h2>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-success" onclick="triggerReload()">🔄 Hot Reload Config</button>
+                <button class="btn btn-secondary" onclick="window.open('/metrics', '_blank')">📊 View Metrics</button>
+            </div>
+        </div>
+        
+        <!-- Access Control Section -->
+        <div class="section" id="access-control-section">
+            <div class="section-header">
+                <h2>🔐 Access Control</h2>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span id="access-status" class="status-badge status-connected">Active</span>
+                    <button class="btn btn-secondary btn-small" onclick="refreshAccessControl()">🔄 Refresh</button>
+                </div>
+            </div>
+            
+            <!-- Pending Requests -->
+            <div id="pending-requests-container">
+                <h3>⏳ Pending Access Requests</h3>
+                <div id="pending-requests-list" class="access-list">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+            
+            <!-- Active Grants -->
+            <div id="active-grants-container" style="margin-top: 30px;">
+                <h3>✅ Active Access Grants</h3>
+                <div id="active-grants-list" class="access-list">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+            
+            <div class="help-text" style="margin-top: 16px;">
+                When an MCP server tries to access a path outside its configured scope, a request is created.
+                Use <code>mcp-gateway approve</code> CLI or approve here. Grants are time-bound (default: 1 minute).
+            </div>
+        </div>
+        
+        <!-- Config Change Approval Section -->
+        <div class="section" id="config-change-section">
+            <div class="section-header">
+                <h2>⚙️ Config Change Approval</h2>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span id="config-change-status" class="status-badge status-connected">Active</span>
+                    <button class="btn btn-secondary btn-small" onclick="refreshConfigChanges()">🔄 Refresh</button>
+                </div>
+            </div>
+            
+            <!-- Pending Config Changes -->
+            <div id="pending-config-changes-container">
+                <h3>⏳ Pending Config Changes</h3>
+                <div id="pending-config-changes-list" class="access-list">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+            
+            <!-- Active Config Grants -->
+            <div id="active-config-grants-container" style="margin-top: 30px;">
+                <h3>✅ Active Config Grants (Auto-Revert)</h3>
+                <div id="active-config-grants-list" class="access-list">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+            
+            <div class="help-text" style="margin-top: 16px;">
+                Changes to server configurations that include sensitive paths require CLI approval. 
+                Sensitive paths include system directories (e.g., <code>/etc</code>, <code>/sys</code> on Linux; 
+                <code>C:\Windows</code> on Windows). Use <code>mcp-gateway approve CODE</code> to approve. 
+                Approved changes are temporary and automatically reverted after the grant expires.
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add/Edit Modal -->
+    <div class="modal-overlay" id="server-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title">Add MCP Server</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            
+            <div id="modal-errors"></div>
+            
+            <form id="server-form" onsubmit="return false;">
+                <input type="hidden" id="original-name" value="">
+                
+                <div class="form-group">
+                    <label for="server-name">Server Name *</label>
+                    <input type="text" id="server-name" placeholder="e.g., my-filesystem" required>
+                    <div class="help-text">Unique identifier for this server</div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Server Type</label>
+                    <div class="server-type-selector">
+                        <div class="type-option active" onclick="selectType('stdio')" id="type-stdio">
+                            <h4>📦 Stdio</h4>
+                            <p>npx, uvx, local commands</p>
+                        </div>
+                        <div class="type-option" onclick="selectType('remote')" id="type-remote">
+                            <h4>🌐 Remote</h4>
+                            <p>SSE or StreamableHTTP</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Stdio fields -->
+                <div id="stdio-fields">
+                    <div class="form-group">
+                        <label for="server-base-command">Base Command *</label>
+                        <input type="text" id="server-base-command" placeholder="npx or uvx">
+                        <div class="help-text">The executable (e.g., npx, uvx, python)</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Arguments (Non-Path Only)</label>
+                        <div class="help-text" style="margin-bottom: 8px;">
+                            Package names, flags, options, etc. Folder paths are configured in the Tools section below.
+                        </div>
+                        <div id="args-list" class="dynamic-inputs">
+                            <!-- Dynamic argument fields will be added here -->
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-small" onclick="addArgField()" style="margin-top: 8px;">+ Add Argument</button>
+                    </div>
+                </div>
+                
+                <!-- Remote fields -->
+                <div id="remote-fields" class="hidden">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="server-url">URL *</label>
+                            <input type="text" id="server-url" placeholder="http://localhost:3000/mcp">
+                        </div>
+                        <div class="form-group">
+                            <label for="server-transport">Transport</label>
+                            <select id="server-transport">
+                                <option value="streamable-http">StreamableHTTP (recommended)</option>
+                                <option value="sse">SSE (legacy)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tools Section -->
+                <div id="tools-section" class="hidden">
+                    <h3>🔧 Tools Configuration</h3>
+                    <div class="help-text" style="margin-bottom: 12px;">
+                        Enable/disable individual tools. For filesystem servers, you can add/remove folder paths.
+                    </div>
+                    <div id="tools-list" class="tool-list">
+                        <div class="loading">
+                            <span class="spinner"></span>
+                            Loading tools...
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Legacy disabled tools (for non-connected servers) -->
+                <div id="legacy-disabled-section">
+                    <div class="form-group">
+                        <label for="server-disabled">Disabled Tools (comma-separated)</label>
+                        <input type="text" id="server-disabled" placeholder="tool1, tool2, tool3">
+                        <div class="help-text">Manually specify tools to disable (used when server is not connected)</div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveServer()">Save Server</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        let currentType = 'stdio';
+        let servers = [];
+        let currentTools = [];
+        let toolConfigs = {}; // Store tool-specific configs like folders
+        
+        // API helpers
+        async function apiGet(endpoint) {
+            const response = await fetch(endpoint);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.json();
+        }
+        
+        async function apiPost(endpoint, data = null) {
+            const options = { method: 'POST' };
+            if (data) {
+                options.headers = { 'Content-Type': 'application/json' };
+                options.body = JSON.stringify(data);
+            }
+            const response = await fetch(endpoint, options);
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+                throw new Error(err.error || `HTTP ${response.status}`);
+            }
+            return response.json();
+        }
+        
+        async function apiPut(endpoint, data) {
+            const response = await fetch(endpoint, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+                throw new Error(err.error || `HTTP ${response.status}`);
+            }
+            return response.json();
+        }
+        
+        async function apiDelete(endpoint) {
+            const response = await fetch(endpoint, { method: 'DELETE' });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+                throw new Error(err.error || `HTTP ${response.status}`);
+            }
+            return response.json();
+        }
+        
+        // UI helpers
+        function showMessage(message, isError = false) {
+            const container = document.getElementById('message-container');
+            const div = document.createElement('div');
+            div.className = isError ? 'error-message' : 'success-message';
+            div.textContent = message;
+            container.innerHTML = '';
+            container.appendChild(div);
+            setTimeout(() => div.remove(), 5000);
+        }
+        
+        function showModalError(message) {
+            const container = document.getElementById('modal-errors');
+            container.innerHTML = `<div class="error-message">${message}</div>`;
+        }
+        
+        function clearModalError() {
+            document.getElementById('modal-errors').innerHTML = '';
+        }
+        
+        // Load servers
+        async function loadServers() {
+            try {
+                const data = await apiGet('/api/servers');
+                servers = data.servers || [];
+                renderServers();
+            } catch (error) {
+                showMessage(`Failed to load servers: ${error.message}`, true);
+            }
+        }
+        
+        function renderServers() {
+            const tbody = document.getElementById('servers-tbody');
+            
+            if (servers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: #64748b;">No servers configured</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = servers.map(server => {
+                const isRemote = !!server.url;
+                const displayValue = isRemote ? server.url : (server.command || 'N/A');
+                const typeLabel = isRemote ? (server.type || 'remote') : 'stdio';
+                const toolCount = (server.availableTools || []).length;
+                const disabledCount = (server.disabledTools || []).length;
+                
+                return `
+                    <tr>
+                        <td><strong>${escapeHtml(server.name)}</strong></td>
+                        <td><span style="background: #334155; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;">${typeLabel}</span></td>
+                        <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(displayValue)}</td>
+                        <td>
+                            ${toolCount > 0 
+                                ? `<span style="color: #22c55e;">${toolCount - disabledCount} enabled</span>${disabledCount > 0 ? ` <span style="color: #64748b;">(${disabledCount} disabled)</span>` : ''}`
+                                : '<span style="color: #64748b;">-</span>'
+                            }
+                        </td>
+                        <td>
+                            <div class="actions">
+                                <button class="btn btn-secondary btn-small" onclick="editServer('${escapeHtml(server.name)}')">Edit</button>
+                                <button class="btn btn-danger btn-small" onclick="deleteServer('${escapeHtml(server.name)}')">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // Modal functions
+        function openAddModal() {
+            document.getElementById('modal-title').textContent = 'Add MCP Server';
+            document.getElementById('original-name').value = '';
+            document.getElementById('server-form').reset();
+            selectType('stdio');
+            clearModalError();
+            
+            // Clear args list
+            clearArgsList();
+            
+            // Reset tool section
+            document.getElementById('tools-section').classList.add('hidden');
+            document.getElementById('legacy-disabled-section').classList.remove('hidden');
+            document.getElementById('tools-list').innerHTML = '<div class="loading"><span class="spinner"></span>Loading tools...</div>';
+            currentTools = [];
+            toolConfigs = {};
+            
+            document.getElementById('server-modal').classList.add('active');
+        }
+        
+        function closeModal() {
+            document.getElementById('server-modal').classList.remove('active');
+        }
+        
+        function selectType(type) {
+            currentType = type;
+            document.querySelectorAll('.type-option').forEach(el => el.classList.remove('active'));
+            document.getElementById(`type-${type}`).classList.add('active');
+            
+            if (type === 'stdio') {
+                document.getElementById('stdio-fields').classList.remove('hidden');
+                document.getElementById('remote-fields').classList.add('hidden');
+            } else {
+                document.getElementById('stdio-fields').classList.add('hidden');
+                document.getElementById('remote-fields').classList.remove('hidden');
+            }
+        }
+        
+        // Argument Management
+        function addArgField(value = '') {
+            const argsList = document.getElementById('args-list');
+            const index = argsList.children.length;
+            
+            const div = document.createElement('div');
+            div.className = 'input-row';
+            div.dataset.argIndex = index;
+            
+            div.innerHTML = `
+                <input type="text" value="${escapeHtml(value)}" placeholder="e.g., -y, --flag, package-name" 
+                       class="arg-input">
+                <button type="button" class="btn-icon btn-remove" onclick="removeArgField(${index})" title="Remove argument">−</button>
+            `;
+            argsList.appendChild(div);
+        }
+        
+        function removeArgField(index) {
+            const argRow = document.querySelector(`#args-list .input-row[data-arg-index="${index}"]`);
+            if (argRow) {
+                argRow.remove();
+            }
+        }
+        
+        function collectArgs() {
+            const inputs = document.querySelectorAll('.arg-input');
+            return Array.from(inputs).map(input => input.value.trim()).filter(Boolean);
+        }
+        
+        function clearArgsList() {
+            document.getElementById('args-list').innerHTML = '';
+        }
+        
+        // Tool Management
+        function isFilesystemServer(baseCommand, args) {
+            const cmd = (baseCommand + ' ' + args.join(' ')).toLowerCase();
+            return cmd.includes('filesystem') || cmd.includes('fs');
+        }
+        
+        function parseFoldersFromArgs(args) {
+            // Extract folder paths from arguments
+            return args.filter(arg => {
+                return arg.startsWith('/') || arg.startsWith('./') || arg.startsWith('~/');
+            });
+        }
+        
+        async function loadToolsForServer(serverName) {
+            const toolsListEl = document.getElementById('tools-list');
+            
+            try {
+                // Get available tools from backend if connected
+                const response = await apiGet(`/api/servers/${encodeURIComponent(serverName)}/tools`);
+                const tools = response.tools || [];
+                const disabledTools = response.disabledTools || [];
+                
+                currentTools = tools;
+                
+                if (tools.length === 0) {
+                    toolsListEl.innerHTML = '<div class="loading">No tools available. Server may not be connected.</div>';
+                    return;
+                }
+                
+                // Check if this is a filesystem server
+                const server = servers.find(s => s.name === serverName);
+                const isFs = server && isFilesystemServer(server.command, server.args || []);
+                const folders = isFs && server ? parseFoldersFromArgs(server.args || []) : [];
+                
+                renderToolsList(tools, disabledTools, isFs, folders);
+                
+            } catch (error) {
+                toolsListEl.innerHTML = `<div class="loading">Could not load tools: ${error.message}</div>`;
+            }
+        }
+        
+        function renderToolsList(tools, disabledTools, isFilesystem, folders) {
+            const toolsListEl = document.getElementById('tools-list');
+            
+            if (tools.length === 0) {
+                toolsListEl.innerHTML = '<div class="loading">No tools found</div>';
+                return;
+            }
+            
+            // Group tools if filesystem
+            let html = '';
+            
+            if (isFilesystem && folders.length > 0) {
+                // Show folder configuration first
+                html += `<div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #1e293b;">`;
+                html += `<div style="font-weight: 600; margin-bottom: 12px; color: #60a5fa;">📁 Allowed Folders</div>`;
+                html += `<div class="help-text" style="margin-bottom: 12px;">The filesystem server can only access these folders:</div>`;
+                html += `<div id="folders-list">`;
+                
+                folders.forEach((folder, index) => {
+                    html += `
+                        <div class="input-row" data-folder-index="${index}">
+                            <input type="text" value="${escapeHtml(folder)}" placeholder="/path/to/folder" class="folder-input" data-original="${escapeHtml(folder)}">
+                            <button type="button" class="btn-icon btn-remove" onclick="removeFolder(${index})" title="Remove folder">−</button>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+                html += `<button type="button" class="btn btn-secondary btn-small" onclick="addFolder()" style="margin-top: 8px;">+ Add Folder</button>`;
+                html += `</div>`;
+            }
+            
+            // Show tools with toggles
+            html += `<div>`;
+            html += `<div style="font-weight: 600; margin-bottom: 12px; color: #60a5fa;">🔧 Tools</div>`;
+            
+            tools.forEach(tool => {
+                const toolName = typeof tool === 'object' ? tool.name : tool;
+                const isDisabled = disabledTools.includes(toolName);
+                
+                html += `
+                    <div class="tool-item ${isDisabled ? 'tool-disabled' : ''}" data-tool="${escapeHtml(toolName)}">
+                        <div class="tool-info">
+                            <div class="tool-name">${escapeHtml(toolName)}</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" ${!isDisabled ? 'checked' : ''} onchange="toggleTool('${escapeHtml(toolName)}', this.checked)">
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-label">${isDisabled ? 'Disabled' : 'Enabled'}</span>
+                        </label>
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+            
+            toolsListEl.innerHTML = html;
+        }
+        
+        function toggleTool(toolName, enabled) {
+            const toolItem = document.querySelector(`.tool-item[data-tool="${CSS.escape(toolName)}"]`);
+            if (toolItem) {
+                if (enabled) {
+                    toolItem.classList.remove('tool-disabled');
+                    toolItem.querySelector('.toggle-label').textContent = 'Enabled';
+                } else {
+                    toolItem.classList.add('tool-disabled');
+                    toolItem.querySelector('.toggle-label').textContent = 'Disabled';
+                }
+            }
+        }
+        
+        function addFolder() {
+            const foldersList = document.getElementById('folders-list');
+            const index = foldersList.children.length;
+            
+            const div = document.createElement('div');
+            div.className = 'input-row';
+            div.dataset.folderIndex = index;
+            div.innerHTML = `
+                <input type="text" value="" placeholder="/path/to/folder" class="folder-input" data-original="">
+                <button type="button" class="btn-icon btn-remove" onclick="removeFolder(${index})" title="Remove folder">−</button>
+            `;
+            foldersList.appendChild(div);
+        }
+        
+        function removeFolder(index) {
+            const folderRow = document.querySelector(`#folders-list .input-row[data-folder-index="${index}"]`);
+            if (folderRow) {
+                folderRow.remove();
+            }
+        }
+        
+        function getCurrentFolders() {
+            const inputs = document.querySelectorAll('.folder-input');
+            return Array.from(inputs).map(input => input.value.trim()).filter(Boolean);
+        }
+        
+        function getDisabledTools() {
+            const disabled = [];
+            document.querySelectorAll('.tool-item').forEach(item => {
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                if (checkbox && !checkbox.checked) {
+                    disabled.push(item.dataset.tool);
+                }
+            });
+            return disabled;
+        }
+        
+        // Edit server
+        async function editServer(name) {
+            const server = servers.find(s => s.name === name);
+            if (!server) return;
+            
+            document.getElementById('modal-title').textContent = 'Edit MCP Server';
+            document.getElementById('original-name').value = server.name;
+            document.getElementById('server-name').value = server.name;
+            
+            // Show tool section
+            document.getElementById('tools-section').classList.remove('hidden');
+            document.getElementById('legacy-disabled-section').classList.add('hidden');
+            document.getElementById('tools-list').innerHTML = '<div class="loading"><span class="spinner"></span>Loading tools...</div>';
+            
+            if (server.url) {
+                selectType('remote');
+                document.getElementById('server-url').value = server.url;
+                document.getElementById('server-transport').value = server.type || 'streamable-http';
+            } else {
+                selectType('stdio');
+                
+                // Set base command
+                document.getElementById('server-base-command').value = server.command || '';
+                
+                // Clear and populate args list (only non-path args)
+                clearArgsList();
+                if (server.args && server.args.length > 0) {
+                    // Filter out folder paths - they are managed in the tools section
+                    const nonPathArgs = server.args.filter(arg => 
+                        !arg.startsWith('/') && !arg.startsWith('./') && !arg.startsWith('~/')
+                    );
+                    nonPathArgs.forEach(arg => addArgField(arg));
+                }
+            }
+            
+            clearModalError();
+            document.getElementById('server-modal').classList.add('active');
+            
+            // Load tools after modal is shown
+            await loadToolsForServer(name);
+        }
+        
+        // Save server
+        async function saveServer() {
+            clearModalError();
+            
+            const originalName = document.getElementById('original-name').value;
+            const name = document.getElementById('server-name').value.trim();
+            
+            if (!name) {
+                showModalError('Server name is required');
+                return;
+            }
+            
+            const config = {};
+            
+            // Get disabled tools from toggles if available, otherwise from input
+            const toolsSectionVisible = !document.getElementById('tools-section').classList.contains('hidden');
+            if (toolsSectionVisible) {
+                config.disabledTools = getDisabledTools();
+            } else {
+                const disabledStr = document.getElementById('server-disabled').value.trim();
+                config.disabledTools = disabledStr ? disabledStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+            }
+            
+            if (currentType === 'stdio') {
+                const baseCommand = document.getElementById('server-base-command').value.trim();
+                
+                if (!baseCommand) {
+                    showModalError('Command is required for stdio servers');
+                    return;
+                }
+                
+                // Collect non-path args from text fields (folders are managed separately)
+                let nonPathArgs = collectArgs().filter(arg => {
+                    const trimmed = arg.trim();
+                    return trimmed !== '' && 
+                           !trimmed.startsWith('/') && 
+                           !trimmed.startsWith('./') && 
+                           !trimmed.startsWith('~/');
+                });
+                
+                // Get folders from the folder management UI
+                let args = [...nonPathArgs];
+                
+                // If editing filesystem server, add folders from tools section
+                if (isFilesystemServer(baseCommand, nonPathArgs) && toolsSectionVisible) {
+                    const folders = getCurrentFolders();
+                    args = [...nonPathArgs, ...folders];
+                }
+                
+                config.command = baseCommand;
+                config.args = args;
+            } else {
+                const url = document.getElementById('server-url').value.trim();
+                if (!url) {
+                    showModalError('URL is required for remote servers');
+                    return;
+                }
+                config.url = url;
+                config.type = document.getElementById('server-transport').value;
+            }
+            
+            // Debug: Log what's being sent
+            console.log('Saving server config:', { name, config, args: config.args, folders: getCurrentFolders() });
+            
+            try {
+                if (originalName) {
+                    // Update existing
+                    if (originalName !== name) {
+                        // Delete old, create new
+                        await apiDelete(`/api/servers/${encodeURIComponent(originalName)}`);
+                        await apiPost('/api/servers', { name, config });
+                    } else {
+                        // Try to update - may require approval for sensitive paths
+                        const response = await fetch(`/api/servers/${encodeURIComponent(name)}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(config)
+                        });
+                        
+                        const result = await response.json();
+                        console.log('Server response:', result);
+                        
+                        if (!response.ok) {
+                            throw new Error(result.detail || 'Failed to update server');
+                        }
+                        
+                        // Check if approval is required
+                        if (result.requires_approval) {
+                            closeModal();
+                            showMessage(`⚠️ Config change requires approval. Code: ${result.approval_code}`, true);
+                            loadServers();
+                            refreshConfigChanges();  // Show the pending request
+                            return;
+                        }
+                    }
+                    showMessage(`Server '${name}' updated successfully`);
+                } else {
+                    // Create new
+                    await apiPost('/api/servers', { name, config });
+                    showMessage(`Server '${name}' added successfully`);
+                }
+                
+                closeModal();
+                loadServers();
+                
+                // Auto-trigger reload
+                setTimeout(() => triggerReload(), 500);
+                
+            } catch (error) {
+                console.error('Save failed:', error);
+                showModalError(error.message);
+            }
+        }
+        
+        // Delete server
+        async function deleteServer(name) {
+            if (!confirm(`Are you sure you want to delete '${name}'?`)) return;
+            
+            try {
+                await apiDelete(`/api/servers/${encodeURIComponent(name)}`);
+                showMessage(`Server '${name}' deleted successfully`);
+                loadServers();
+                setTimeout(() => triggerReload(), 500);
+            } catch (error) {
+                showMessage(`Failed to delete: ${error.message}`, true);
+            }
+        }
+        
+        // Trigger reload
+        async function triggerReload() {
+            try {
+                await apiPost('/api/reload');
+                showMessage('Configuration reloaded successfully');
+            } catch (error) {
+                showMessage(`Reload failed: ${error.message}`, true);
+            }
+        }
+        
+        // Access Control Functions
+        let accessControlEventSource = null;
+        let activeGrantsTimers = new Map();
+        
+        async function loadPendingRequests() {
+            try {
+                const data = await apiGet('/api/access/requests/pending');
+                renderPendingRequests(data.requests || []);
+            } catch (error) {
+                console.error('Failed to load pending requests:', error);
+                document.getElementById('pending-requests-list').innerHTML = 
+                    '<div class="access-empty">Failed to load pending requests</div>';
+            }
+        }
+        
+        async function loadActiveGrants() {
+            try {
+                const data = await apiGet('/api/access/grants/active');
+                renderActiveGrants(data.grants || []);
+            } catch (error) {
+                console.error('Failed to load active grants:', error);
+                document.getElementById('active-grants-list').innerHTML = 
+                    '<div class="access-empty">Failed to load active grants</div>';
+            }
+        }
+        
+        function renderPendingRequests(requests) {
+            const container = document.getElementById('pending-requests-list');
+            
+            if (requests.length === 0) {
+                container.innerHTML = '<div class="access-empty">No pending access requests</div>';
+                return;
+            }
+            
+            container.innerHTML = requests.map(req => `
+                <div class="access-item pending" id="request-${req.code}">
+                    <div class="access-info">
+                        <div class="access-code">${escapeHtml(req.code)}</div>
+                        <div class="access-path">📁 ${escapeHtml(req.path)}</div>
+                        <div class="access-meta">
+                            MCP: <strong>${escapeHtml(req.mcp_name)}</strong> | 
+                            Tool: ${escapeHtml(req.tool_name)} | 
+                            Expires: ${formatTimeRemaining(req.expires_at)}
+                        </div>
+                    </div>
+                    <div class="access-actions">
+                        <select class="duration-select" id="duration-${req.code}">
+                            <option value="1">1 min</option>
+                            <option value="5">5 min</option>
+                            <option value="15">15 min</option>
+                            <option value="30">30 min</option>
+                            <option value="60">1 hour</option>
+                        </select>
+                        <button class="btn btn-approve btn-small" onclick="approveRequest('${req.code}')">✓ Approve</button>
+                        <button class="btn btn-deny btn-small" onclick="denyRequest('${req.code}')">✗ Deny</button>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Start countdown timers
+            requests.forEach(req => startCountdown(req.code, req.expires_at));
+        }
+        
+        function renderActiveGrants(grants) {
+            const container = document.getElementById('active-grants-list');
+            
+            // Clear existing timers
+            activeGrantsTimers.forEach(timer => clearInterval(timer));
+            activeGrantsTimers.clear();
+            
+            if (grants.length === 0) {
+                container.innerHTML = '<div class="access-empty">No active access grants</div>';
+                return;
+            }
+            
+            container.innerHTML = grants.map(grant => `
+                <div class="access-item granted" id="grant-${grant.id}">
+                    <div class="access-info">
+                        <div class="access-path">📁 ${escapeHtml(grant.path)}</div>
+                        <div class="access-meta">
+                            MCP: <strong>${escapeHtml(grant.mcp_name)}</strong> | 
+                            Tool: ${escapeHtml(grant.tool_name)} | 
+                            Approved by: ${grant.approved_by}
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <span class="countdown" id="countdown-${grant.id}">
+                                ${formatTimeRemaining(grant.expires_at)}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="access-actions">
+                        <button class="btn btn-revoke btn-small" onclick="revokeGrant('${grant.id}')">✕ Revoke</button>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Start countdown timers for grants
+            grants.forEach(grant => startGrantCountdown(grant.id, grant.expires_at));
+        }
+        
+        function startCountdown(code, expiresAt) {
+            // Handled by re-rendering, no need for interval
+        }
+        
+        function startGrantCountdown(grantId, expiresAt) {
+            const update = () => {
+                const el = document.getElementById(`countdown-${grantId}`);
+                if (!el) {
+                    clearInterval(timer);
+                    activeGrantsTimers.delete(grantId);
+                    return;
+                }
+                
+                const remaining = formatTimeRemaining(expiresAt);
+                el.textContent = remaining;
+                
+                if (remaining === 'Expired') {
+                    clearInterval(timer);
+                    activeGrantsTimers.delete(grantId);
+                    loadActiveGrants(); // Refresh
+                }
+            };
+            
+            const timer = setInterval(update, 1000);
+            activeGrantsTimers.set(grantId, timer);
+            update();
+        }
+        
+        function formatTimeRemaining(isoDate) {
+            const expires = new Date(isoDate);
+            const now = new Date();
+            const diff = expires - now;
+            
+            if (diff <= 0) return 'Expired';
+            
+            const minutes = Math.floor(diff / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            
+            if (minutes > 0) {
+                return `${minutes}m ${seconds}s`;
+            }
+            return `${seconds}s`;
+        }
+        
+        async function approveRequest(code) {
+            const durationSelect = document.getElementById(`duration-${code}`);
+            const duration = parseInt(durationSelect?.value || '1');
+            
+            try {
+                await apiPost(`/api/access/requests/${code}/approve`, {
+                    duration_minutes: duration,
+                    approved_by: 'web'
+                });
+                showMessage(`Access approved for ${duration} minute(s)`);
+                loadPendingRequests();
+                loadActiveGrants();
+            } catch (error) {
+                showMessage(`Failed to approve: ${error.message}`, true);
+            }
+        }
+        
+        async function denyRequest(code) {
+            if (!confirm('Are you sure you want to deny this access request?')) return;
+            
+            try {
+                await apiPost(`/api/access/requests/${code}/deny`);
+                showMessage('Access request denied');
+                loadPendingRequests();
+            } catch (error) {
+                showMessage(`Failed to deny: ${error.message}`, true);
+            }
+        }
+        
+        async function revokeGrant(grantId) {
+            if (!confirm('Are you sure you want to revoke this access grant?')) return;
+            
+            try {
+                await apiDelete(`/api/access/grants/${grantId}`);
+                showMessage('Access grant revoked');
+                loadActiveGrants();
+            } catch (error) {
+                showMessage(`Failed to revoke: ${error.message}`, true);
+            }
+        }
+        
+        function refreshAccessControl() {
+            loadPendingRequests();
+            loadActiveGrants();
+        }
+        
+        function setupAccessControlEvents() {
+            // Use SSE for real-time updates
+            if (typeof EventSource !== 'undefined') {
+                accessControlEventSource = new EventSource('/api/access/events');
+                
+                accessControlEventSource.onopen = () => {
+                    console.log('Access control events connected');
+                    document.getElementById('access-status').textContent = 'Live';
+                    document.getElementById('access-status').className = 'status-badge status-connected';
+                };
+                
+                accessControlEventSource.onerror = () => {
+                    console.error('Access control events error');
+                    document.getElementById('access-status').textContent = 'Disconnected';
+                    document.getElementById('access-status').className = 'status-badge status-error';
+                };
+                
+                accessControlEventSource.addEventListener('request_created', () => {
+                    showMessage('New access request received', false);
+                    loadPendingRequests();
+                });
+                
+                accessControlEventSource.addEventListener('request_approved', () => {
+                    loadPendingRequests();
+                    loadActiveGrants();
+                });
+                
+                accessControlEventSource.addEventListener('request_expired', () => {
+                    loadPendingRequests();
+                    loadActiveGrants();
+                });
+                
+                // Config change events
+                accessControlEventSource.addEventListener('config_request_created', () => {
+                    showMessage('New config change request received', false);
+                    loadPendingConfigChanges();
+                });
+                
+                accessControlEventSource.addEventListener('config_request_approved', () => {
+                    loadPendingConfigChanges();
+                    loadActiveConfigGrants();
+                    loadServers();
+                });
+                
+                accessControlEventSource.addEventListener('config_request_denied', () => {
+                    loadPendingConfigChanges();
+                });
+                
+                accessControlEventSource.addEventListener('config_reverted', (e) => {
+                    const data = JSON.parse(e.data);
+                    showMessage(`Config change for '${data.server_name}' was reverted (${data.reason})`, false);
+                    loadActiveConfigGrants();
+                    loadServers();
+                });
+                
+                accessControlEventSource.addEventListener('config_request_expired', () => {
+                    loadPendingConfigChanges();
+                });
+            }
+        }
+        
+        // Config Change Approval Functions
+        let configGrantsTimers = new Map();
+        
+        async function loadPendingConfigChanges() {
+            try {
+                const data = await apiGet('/api/config-changes/pending');
+                renderPendingConfigChanges(data.requests || []);
+            } catch (error) {
+                console.error('Failed to load pending config changes:', error);
+                document.getElementById('pending-config-changes-list').innerHTML = 
+                    '<div class="access-empty">Failed to load pending config changes</div>';
+            }
+        }
+        
+        async function loadActiveConfigGrants() {
+            try {
+                const data = await apiGet('/api/config-changes/grants');
+                renderActiveConfigGrants(data.grants || []);
+            } catch (error) {
+                console.error('Failed to load active config grants:', error);
+                document.getElementById('active-config-grants-list').innerHTML = 
+                    '<div class="access-empty">Failed to load active config grants</div>';
+            }
+        }
+        
+        function renderPendingConfigChanges(requests) {
+            const container = document.getElementById('pending-config-changes-list');
+            
+            if (requests.length === 0) {
+                container.innerHTML = '<div class="access-empty">No pending config changes</div>';
+                return;
+            }
+            
+            container.innerHTML = requests.map(req => `
+                <div class="access-item pending" id="config-request-${req.code}">
+                    <div class="access-info">
+                        <div class="access-code">${escapeHtml(req.code)}</div>
+                        <div class="access-path">⚙️ ${escapeHtml(req.server_name)} - <span class="sensitive-path">${escapeHtml(req.sensitive_path || req.sensitive_paths?.[0] || 'N/A')}</span></div>
+                        <div class="access-meta">
+                            Change: <strong>${escapeHtml(req.change_type)}</strong> | 
+                            Expires: ${formatTimeRemaining(req.expires_at)}
+                        </div>
+                        <div class="access-meta" style="color: #fbbf24; margin-top: 8px;">
+                            💻 Use CLI: <code>mcp-gateway approve ${escapeHtml(req.code)}</code>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Start countdown timers
+            requests.forEach(req => startConfigCountdown(req.code, req.expires_at));
+        }
+        
+        function renderActiveConfigGrants(grants) {
+            const container = document.getElementById('active-config-grants-list');
+            
+            // Clear existing timers
+            configGrantsTimers.forEach(timer => clearInterval(timer));
+            configGrantsTimers.clear();
+            
+            if (grants.length === 0) {
+                container.innerHTML = '<div class="access-empty">No active config grants</div>';
+                return;
+            }
+            
+            container.innerHTML = grants.map(grant => `
+                <div class="access-item granted" id="config-grant-${grant.id}">
+                    <div class="access-info">
+                        <div class="access-path">⚙️ ${escapeHtml(grant.server_name)}</div>
+                        <div class="access-meta">
+                            Paths: ${grant.sensitive_paths.map(p => `<span class="sensitive-path">${escapeHtml(p)}</span>`).join(', ')} | 
+                            Duration: ${grant.duration_minutes}min | 
+                            Auto-revert: <span class="countdown" id="config-grant-timer-${grant.id}">${formatTimeRemaining(grant.expires_at)}</span>
+                        </div>
+                    </div>
+                    <div class="access-actions">
+                        <button class="btn btn-deny btn-small" onclick="revertConfigChange('${grant.id}')">↩ Revert Now</button>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Start countdown timers
+            grants.forEach(grant => startConfigGrantCountdown(grant.id, grant.expires_at));
+        }
+        
+        function startConfigCountdown(code, expiresAt) {
+            const timerId = setInterval(() => {
+                const remaining = formatTimeRemaining(expiresAt);
+                const element = document.getElementById(`config-timer-${code}`);
+                if (element) {
+                    element.textContent = remaining;
+                    if (remaining === 'Expired') {
+                        clearInterval(timerId);
+                        loadPendingConfigChanges();
+                    }
+                }
+            }, 1000);
+        }
+        
+        function startConfigGrantCountdown(grantId, expiresAt) {
+            const timerId = setInterval(() => {
+                const remaining = formatTimeRemaining(expiresAt);
+                const element = document.getElementById(`config-grant-timer-${grantId}`);
+                if (element) {
+                    element.textContent = remaining;
+                    if (remaining === 'Expired') {
+                        clearInterval(timerId);
+                        loadActiveConfigGrants();
+                    }
+                }
+            }, 1000);
+            configGrantsTimers.set(grantId, timerId);
+        }
+        
+        async function approveConfigChange(code) {
+            const durationSelect = document.getElementById(`config-duration-${code}`);
+            const duration = parseInt(durationSelect?.value || '1');
+            
+            try {
+                const result = await apiPost(`/api/config-changes/${code}/approve`, {
+                    duration_minutes: duration,
+                    approved_by: 'web'
+                });
+                showMessage(`Config change approved for ${duration} minute(s). Auto-revert scheduled.`);
+                loadPendingConfigChanges();
+                loadActiveConfigGrants();
+                loadServers();  // Refresh server list to show updated config
+            } catch (error) {
+                showMessage(`Failed to approve: ${error.message}`, true);
+            }
+        }
+        
+        async function denyConfigChange(code) {
+            if (!confirm('Are you sure you want to deny this config change?')) return;
+            
+            try {
+                await apiPost(`/api/config-changes/${code}/deny`);
+                showMessage('Config change denied');
+                loadPendingConfigChanges();
+            } catch (error) {
+                showMessage(`Failed to deny: ${error.message}`, true);
+            }
+        }
+        
+        async function revertConfigChange(grantId) {
+            if (!confirm('Are you sure you want to revert this config change now?')) return;
+            
+            try {
+                await apiDelete(`/api/config-changes/grants/${grantId}`);
+                showMessage('Config change reverted');
+                loadActiveConfigGrants();
+                loadServers();  // Refresh server list to show reverted config
+            } catch (error) {
+                showMessage(`Failed to revert: ${error.message}`, true);
+            }
+        }
+        
+        function refreshConfigChanges() {
+            loadPendingConfigChanges();
+            loadActiveConfigGrants();
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadServers();
+            loadPendingRequests();
+            loadActiveGrants();
+            loadPendingConfigChanges();
+            loadActiveConfigGrants();
+            setupAccessControlEvents();
+        });
+        
+        // Close modal on escape
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeModal();
+        });
+        
+        // Close modal on overlay click
+        document.getElementById('server-modal').addEventListener('click', e => {
+            if (e.target.id === 'server-modal') closeModal();
+        });
+    </script>
+</body>
+</html>

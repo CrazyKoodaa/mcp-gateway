@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Gateway :: ADMIN_TERMINAL v2.4</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --phosphor-primary: #33ff33;
+            --phosphor-dim: #0f0;
+            --phosphor-bright: #7fff7f;
+            --phosphor-dark: #080;
+            --bg-color: #050505;
+            --scanline: rgba(0, 255, 0, 0.03);
+            --amber: #ffb000;
+            --amber-dim: #b37700;
+        }
+        
+        body {
+            font-family: 'VT323', 'Courier New', monospace;
+            background: var(--bg-color);
+            color: var(--phosphor-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+            font-size: 20px;
+            text-shadow: 0 0 2px var(--phosphor-dim), 0 0 8px var(--phosphor-dim);
+        }
+        
+        /* CRT Effects */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                to bottom,
+                var(--scanline) 0%,
+                transparent 50%,
+                var(--scanline) 100%
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(
+                ellipse at center,
+                transparent 0%,
+                rgba(0, 0, 0, 0.4) 90%,
+                rgba(0, 0, 0, 0.7) 100%
+            );
+            pointer-events: none;
+            z-index: 1001;
+        }
+        
+        @keyframes flicker {
+            0% { opacity: 0.97; }
+            5% { opacity: 0.99; }
+            10% { opacity: 0.94; }
+            15% { opacity: 0.98; }
+            20% { opacity: 0.96; }
+            25% { opacity: 0.99; }
+            30% { opacity: 0.93; }
+            35% { opacity: 0.98; }
+            40% { opacity: 0.96; }
+            45% { opacity: 0.99; }
+            50% { opacity: 0.95; }
+            55% { opacity: 0.98; }
+            60% { opacity: 0.97; }
+            65% { opacity: 0.99; }
+            70% { opacity: 0.94; }
+            75% { opacity: 0.98; }
+            80% { opacity: 0.96; }
+            85% { opacity: 0.99; }
+            90% { opacity: 0.95; }
+            95% { opacity: 0.98; }
+            100% { opacity: 0.97; }
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 10;
+            animation: flicker 0.15s infinite;
+        }
+        
+        /* Header */
+        header {
+            border: 3px double var(--phosphor-primary);
+            padding: 20px;
+            margin-bottom: 30px;
+            position: relative;
+            background: rgba(0, 20, 0, 0.3);
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.2);
+        }
+        
+        header::before {
+            content: '◆ SYS.ROOT ◆';
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background: var(--bg-color);
+            padding: 0 15px;
+            color: var(--amber);
+            font-size: 16px;
+            letter-spacing: 3px;
+        }
+        
+        h1 {
+            font-size: 2.2rem;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            text-shadow: 
+                0 0 10px var(--phosphor-primary),
+                0 0 20px var(--phosphor-primary),
+                0 0 40px var(--phosphor-primary);
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: var(--phosphor-dim);
+            font-size: 1rem;
+            letter-spacing: 3px;
+        }
+        
+        .subtitle::before {
+            content: 'root@mgw:~$ ';
+            color: var(--amber);
+        }
+        
+        /* Navigation */
+        .nav {
+            display: flex;
+            gap: 5px;
+            margin-top: 20px;
+            border-top: 1px solid var(--phosphor-dark);
+            padding-top: 15px;
+        }
+        
+        .nav a {
+            color: var(--phosphor-dim);
+            text-decoration: none;
+            padding: 8px 20px;
+            border: 1px solid var(--phosphor-dark);
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 1.05rem;
+        }
+        
+        .nav a:hover {
+            color: var(--phosphor-bright);
+            border-color: var(--phosphor-primary);
+            background: rgba(0, 255, 0, 0.1);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
+            text-shadow: 0 0 10px var(--phosphor-primary);
+        }
+        
+        .nav a.active {
+            color: var(--phosphor-primary);
+            border-color: var(--phosphor-primary);
+            background: rgba(0, 255, 0, 0.15);
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+        }
+        
+        /* Terminal Box */
+        .terminal-box {
+            border: 2px solid var(--phosphor-primary);
+            margin-bottom: 25px;
+            position: relative;
+            background: rgba(0, 10, 0, 0.5);
+        }
+        
+        .terminal-box.cornered::before,
+        .terminal-box.cornered::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--phosphor-bright);
+        }
+        
+        .terminal-box.cornered::before {
+            top: -2px;
+            left: -2px;
+            border-right: none;
+            border-bottom: none;
+        }
+        
+        .terminal-box.cornered::after {
+            bottom: -2px;
+            right: -2px;
+            border-left: none;
+            border-top: none;
+        }
+        
+        .box-header {
+            background: linear-gradient(90deg, var(--phosphor-dark), transparent);
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--phosphor-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .box-title {
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: var(--amber);
+        }
+        
+        .box-title::before {
+            content: '> ';
+            color: var(--phosphor-primary);
+        }
+        
+        .box-content {
+            padding: 20px;
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            text-align: left;
+            padding: 12px 15px;
+            border: 1px solid var(--phosphor-dark);
+        }
+        
+        th {
+            background: rgba(0, 40, 0, 0.5);
+            color: var(--amber);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 1rem;
+        }
+        
+        tr:hover {
+            background: rgba(0, 255, 0, 0.05);
+        }
+        
+        tr:hover td {
+            color: var(--phosphor-bright);
+            text-shadow: 0 0 10px var(--phosphor-primary);
+        }
+        
+        /* Buttons */
+        .btn {
+            font-family: 'VT323', monospace;
+            padding: 10px 20px;
+            border: 1px solid var(--phosphor-primary);
+            background: transparent;
+            color: var(--phosphor-primary);
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 1.05rem;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn:hover {
+            background: rgba(0, 255, 0, 0.15);
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+            text-shadow: 0 0 10px var(--phosphor-primary);
+        }
+        
+        .btn:active {
+            background: rgba(0, 255, 0, 0.25);
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.95rem;
+        }
+        
+        .btn-amber {
+            border-color: var(--amber);
+            color: var(--amber);
+        }
+        
+        .btn-amber:hover {
+            background: rgba(255, 176, 0, 0.15);
+            box-shadow: 0 0 20px rgba(255, 176, 0, 0.4);
+        }
+        
+        .btn-danger {
+            border-color: #f00;
+            color: #f00;
+        }
+        
+        .btn-danger:hover {
+            background: rgba(255, 0, 0, 0.15);
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.4);
+        }
+        
+        /* Status */
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border: 1px solid;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.95rem;
+        }
+        
+        .status-online {
+            color: #0f0;
+            border-color: #0f0;
+            background: rgba(0, 255, 0, 0.1);
+            text-shadow: 0 0 10px #0f0;
+            animation: pulse-green 2s infinite;
+        }
+        
+        .status-offline {
+            color: #f00;
+            border-color: #f00;
+            background: rgba(255, 0, 0, 0.1);
+            text-shadow: 0 0 10px #f00;
+        }
+        
+        .status-warning {
+            color: var(--amber);
+            border-color: var(--amber);
+            background: rgba(255, 176, 0, 0.1);
+            text-shadow: 0 0 10px var(--amber);
+        }
+        
+        @keyframes pulse-green {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        /* Access Items */
+        .access-item {
+            border: 1px solid var(--phosphor-dark);
+            padding: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 15, 0, 0.3);
+        }
+        
+        .access-item.pending {
+            border-left: 3px solid var(--amber);
+        }
+        
+        .access-item.granted {
+            border-left: 3px solid #0f0;
+        }
+        
+        .access-code {
+            font-family: 'Courier New', monospace;
+            color: var(--amber);
+            background: rgba(255, 176, 0, 0.1);
+            padding: 5px 12px;
+            display: inline-block;
+            margin-bottom: 8px;
+            letter-spacing: 2px;
+        }
+        
+        .access-path {
+            color: var(--phosphor-bright);
+            font-family: 'Courier New', monospace;
+        }
+        
+        .access-path::before {
+            content: 'PATH: ';
+            color: var(--phosphor-dim);
+        }
+        
+        .access-meta {
+            color: var(--phosphor-dim);
+            font-size: 1.05rem;
+            margin-top: 5px;
+        }
+        
+        /* Code Blocks */
+        code {
+            background: rgba(0, 30, 0, 0.5);
+            padding: 3px 8px;
+            border: 1px solid var(--phosphor-dark);
+            font-family: 'Courier New', monospace;
+            color: var(--amber);
+        }
+        
+        /* Form Elements */
+        input, select, textarea {
+            font-family: 'VT323', monospace;
+            background: rgba(0, 10, 0, 0.8);
+            border: 1px solid var(--phosphor-dark);
+            color: var(--phosphor-primary);
+            padding: 12px;
+            font-size: 1rem;
+            width: 100%;
+            outline: none;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--phosphor-primary);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--amber);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 1.05rem;
+        }
+        
+        .help-text {
+            color: var(--phosphor-dim);
+            font-size: 1rem;
+            margin-top: 5px;
+        }
+        
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal {
+            background: var(--bg-color);
+            border: 3px double var(--phosphor-primary);
+            width: 90%;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 0 50px rgba(0, 255, 0, 0.3);
+        }
+        
+        .modal-header {
+            background: linear-gradient(90deg, var(--phosphor-dark), transparent);
+            padding: 20px;
+            border-bottom: 1px solid var(--phosphor-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-title {
+            color: var(--amber);
+            font-size: 1.3rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+        
+        .close-btn {
+            background: transparent;
+            border: 1px solid var(--phosphor-primary);
+            color: var(--phosphor-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            transition: all 0.3s;
+        }
+        
+        .close-btn:hover {
+            background: rgba(255, 0, 0, 0.2);
+            border-color: #f00;
+            color: #f00;
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        /* Tool List */
+        .tool-list {
+            border: 1px solid var(--phosphor-dark);
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        .tool-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid var(--phosphor-dark);
+        }
+        
+        .tool-item:last-child {
+            border-bottom: none;
+        }
+        
+        .tool-disabled {
+            opacity: 0.4;
+        }
+        
+        .tool-disabled .tool-name {
+            text-decoration: line-through;
+        }
+        
+        /* Toggle Switch */
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+        
+        .toggle-switch input {
+            display: none;
+        }
+        
+        .toggle-slider {
+            width: 44px;
+            height: 24px;
+            background: var(--phosphor-dark);
+            border: 1px solid var(--phosphor-dim);
+            position: relative;
+            transition: all 0.3s;
+        }
+        
+        .toggle-slider::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: var(--phosphor-dim);
+            top: 3px;
+            left: 3px;
+            transition: all 0.3s;
+        }
+        
+        .toggle-switch input:checked + .toggle-slider {
+            background: rgba(0, 255, 0, 0.2);
+            border-color: var(--phosphor-primary);
+        }
+        
+        .toggle-switch input:checked + .toggle-slider::after {
+            background: var(--phosphor-primary);
+            left: 23px;
+            box-shadow: 0 0 10px var(--phosphor-primary);
+        }
+        
+        /* Type Selector */
+        .type-selector {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .type-option {
+            flex: 1;
+            padding: 20px;
+            border: 1px solid var(--phosphor-dark);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(0, 10, 0, 0.5);
+        }
+        
+        .type-option:hover {
+            border-color: var(--phosphor-dim);
+        }
+        
+        .type-option.active {
+            border-color: var(--phosphor-primary);
+            background: rgba(0, 255, 0, 0.1);
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
+        }
+        
+        .type-option h4 {
+            color: var(--amber);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .type-option p {
+            color: var(--phosphor-dim);
+            font-size: 1rem;
+        }
+        
+        /* Messages */
+        .message {
+            padding: 15px 20px;
+            border: 1px solid;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .message-error {
+            color: #f00;
+            border-color: #f00;
+            background: rgba(255, 0, 0, 0.1);
+        }
+        
+        .message-success {
+            color: #0f0;
+            border-color: #0f0;
+            background: rgba(0, 255, 0, 0.1);
+        }
+        
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--phosphor-dim);
+        }
+        
+        .loading::after {
+            content: ' █';
+            animation: blink-cursor 1s infinite;
+        }
+        
+        @keyframes blink-cursor {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--phosphor-dark);
+            border: 1px dashed var(--phosphor-dark);
+        }
+        
+        .empty-state::before {
+            content: '[ NULL_DATA ]';
+            display: block;
+            margin-bottom: 10px;
+        }
+        
+        /* Cursor */
+        .cursor {
+            display: inline-block;
+            width: 12px;
+            height: 20px;
+            background: var(--phosphor-primary);
+            animation: blink 1s step-end infinite;
+            vertical-align: middle;
+            margin-left: 5px;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        
+        /* Hidden */
+        .hidden {
+            display: none !important;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.6rem;
+            }
+            
+            .nav {
+                flex-wrap: wrap;
+            }
+            
+            .type-selector {
+                flex-direction: column;
+            }
+            
+            .access-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ADMIN_TERMINAL<span class="cursor"></span></h1>
+            <p class="subtitle">SYSTEM CONFIGURATION INTERFACE v2.4</p>
+            <nav class="nav">
+                <a href="/retro">[DASHBOARD]</a>
+                <a href="/retro-admin" class="active">[ADMIN]</a>
+                <a href="/">[STD_VIEW]</a>
+            </nav>
+        </header>
+        
+        <div id="message-container"></div>
+        
+        <!-- Servers Section -->
+        <div class="terminal-box cornered">
+            <div class="box-header">
+                <span class="box-title">MCP_SERVERS</span>
+                <button class="btn" onclick="openAddModal()">+ ADD_SERVER</button>
+            </div>
+            <div class="box-content">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Type</th>
+                            <th>Command/URL</th>
+                            <th>Tools</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="servers-tbody">
+                        <tr>
+                            <td colspan="5" class="loading">LOADING DATA</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Access Control -->
+        <div class="terminal-box cornered">
+            <div class="box-header">
+                <span class="box-title">ACCESS_CONTROL</span>
+                <div>
+                    <span class="status status-online">ACTIVE</span>
+                    <button class="btn btn-small" onclick="refreshAccessControl()" style="margin-left: 10px;">REFRESH</button>
+                </div>
+            </div>
+            <div class="box-content">
+                <div style="color: var(--amber); margin-bottom: 15px; text-transform: uppercase;">> Pending Requests</div>
+                <div id="pending-requests-list">
+                    <div class="loading">LOADING</div>
+                </div>
+                
+                <div style="color: #0f0; margin: 25px 0 15px; text-transform: uppercase;">> Active Grants</div>
+                <div id="active-grants-list">
+                    <div class="loading">LOADING</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Config Changes -->
+        <div class="terminal-box cornered">
+            <div class="box-header">
+                <span class="box-title">CONFIG_APPROVAL</span>
+                <button class="btn btn-small" onclick="refreshConfigChanges()">REFRESH</button>
+            </div>
+            <div class="box-content">
+                <div style="color: var(--amber); margin-bottom: 15px; text-transform: uppercase;">> Pending Config Changes</div>
+                <div id="pending-config-changes-list">
+                    <div class="loading">LOADING</div>
+                </div>
+                
+                <div style="color: #0f0; margin: 25px 0 15px; text-transform: uppercase;">> Active Config Grants</div>
+                <div id="active-config-grants-list">
+                    <div class="loading">LOADING</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="terminal-box cornered">
+            <div class="box-header">
+                <span class="box-title">QUICK_ACTIONS</span>
+            </div>
+            <div class="box-content">
+                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    <button class="btn" onclick="triggerReload()">HOT_RELOAD</button>
+                    <button class="btn btn-amber" onclick="window.open('/metrics', '_blank')">VIEW_METRICS</button>
+                    <button class="btn btn-amber" onclick="window.open('/health', '_blank')">HEALTH_CHECK</button>
+                    <button class="btn btn-amber" onclick="window.open('/supervision', '_blank')">SUPERVISION</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add/Edit Modal -->
+    <div class="modal-overlay" id="server-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="modal-title">ADD_SERVER</span>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-errors"></div>
+                
+                <form id="server-form" onsubmit="return false;">
+                    <input type="hidden" id="original-name" value="">
+                    
+                    <div class="form-group">
+                        <label for="server-name">Server Name *</label>
+                        <input type="text" id="server-name" placeholder="e.g., filesystem-01" required>
+                        <div class="help-text">Unique identifier for this server node</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Server Type</label>
+                        <div class="type-selector">
+                            <div class="type-option active" onclick="selectType('stdio')" id="type-stdio">
+                                <h4>STDIO</h4>
+                                <p>Local Process</p>
+                            </div>
+                            <div class="type-option" onclick="selectType('remote')" id="type-remote">
+                                <h4>REMOTE</h4>
+                                <p>Network Connection</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="stdio-fields">
+                        <div class="form-group">
+                            <label for="server-base-command">Base Command *</label>
+                            <input type="text" id="server-base-command" placeholder="npx or uvx">
+                            <div class="help-text">Executable command</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Arguments</label>
+                            <div id="args-list"></div>
+                            <button type="button" class="btn btn-small" onclick="addArgField()" style="margin-top: 10px;">+ ADD_ARG</button>
+                        </div>
+                    </div>
+                    
+                    <div id="remote-fields" class="hidden">
+                        <div class="form-group">
+                            <label for="server-url">URL *</label>
+                            <input type="text" id="server-url" placeholder="http://localhost:3000/mcp">
+                        </div>
+                        <div class="form-group">
+                            <label for="server-transport">Transport</label>
+                            <select id="server-transport">
+                                <option value="streamable-http">STREAMABLE_HTTP</option>
+                                <option value="sse">SSE_LEGACY</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="tools-section" class="hidden">
+                        <div class="tool-list" id="tools-list">
+                            <div class="loading">LOADING TOOLS</div>
+                        </div>
+                    </div>
+                    
+                    <div id="legacy-disabled-section">
+                        <div class="form-group">
+                            <label for="server-disabled">Disabled Tools</label>
+                            <input type="text" id="server-disabled" placeholder="tool1, tool2, tool3">
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 15px; justify-content: flex-end; margin-top: 25px;">
+                        <button type="button" class="btn" onclick="closeModal()">CANCEL</button>
+                        <button type="button" class="btn btn-amber" onclick="saveServer()">SAVE_SERVER</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // API Helpers
+        async function apiGet(endpoint) {
+            const response = await fetch(endpoint);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.json();
+        }
+        
+        async function apiPost(endpoint, data = null) {
+            const options = { method: 'POST' };
+            if (data) {
+                options.headers = { 'Content-Type': 'application/json' };
+                options.body = JSON.stringify(data);
+            }
+            const response = await fetch(endpoint, options);
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+                throw new Error(err.error || `HTTP ${response.status}`);
+            }
+            return response.json();
+        }
+        
+        async function apiPut(endpoint, data) {
+            const response = await fetch(endpoint, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+                throw new Error(err.error || `HTTP ${response.status}`);
+            }
+            return response.json();
+        }
+        
+        async function apiDelete(endpoint) {
+            const response = await fetch(endpoint, { method: 'DELETE' });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+                throw new Error(err.error || `HTTP ${response.status}`);
+            }
+            return response.json();
+        }
+        
+        // UI Helpers
+        function showMessage(message, isError = false) {
+            const container = document.getElementById('message-container');
+            const div = document.createElement('div');
+            div.className = `message message-${isError ? 'error' : 'success'}`;
+            div.textContent = message;
+            container.innerHTML = '';
+            container.appendChild(div);
+            setTimeout(() => div.remove(), 5000);
+        }
+        
+        function showModalError(message) {
+            document.getElementById('modal-errors').innerHTML = 
+                `<div class="message message-error">ERROR: ${message}</div>`;
+        }
+        
+        function clearModalError() {
+            document.getElementById('modal-errors').innerHTML = '';
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Data
+        let servers = [];
+        let currentTools = [];
+        let currentType = 'stdio';
+        
+        // Load Functions
+        async function loadServers() {
+            try {
+                const data = await apiGet('/api/servers');
+                servers = data.servers || [];
+                renderServers();
+            } catch (error) {
+                showMessage(`Failed to load servers: ${error.message}`, true);
+            }
+        }
+        
+        function renderServers() {
+            const tbody = document.getElementById('servers-tbody');
+            
+            if (servers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">NO_SERVERS_CONFIGURED</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = servers.map((server, idx) => {
+                const isRemote = !!server.url;
+                const displayValue = isRemote ? server.url : (server.command || 'N/A');
+                const typeLabel = isRemote ? (server.type || 'REMOTE') : 'STDIO';
+                const toolCount = (server.availableTools || []).length;
+                const disabledCount = (server.disabledTools || []).length;
+                
+                return `
+                    <tr>
+                        <td>${String(idx + 1).padStart(3, '0')} | ${escapeHtml(server.name)}</td>
+                        <td><span class="status status-warning">${typeLabel}</span></td>
+                        <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(displayValue)}</td>
+                        <td>
+                            ${toolCount > 0 
+                                ? `<span style="color: #0f0;">${toolCount - disabledCount} ENABLED</span>${disabledCount > 0 ? ` <span style="color: var(--phosphor-dim);">(${disabledCount} DISABLED)</span>` : ''}`
+                                : '<span style="color: var(--phosphor-dim);">--</span>'
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-small" onclick="editServer('${escapeHtml(server.name)}')">EDIT</button>
+                            <button class="btn btn-small btn-danger" onclick="deleteServer('${escapeHtml(server.name)}')">DELETE</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // Access Control
+        async function refreshAccessControl() {
+            try {
+                const [pending, grants] = await Promise.all([
+                    apiGet('/api/access/requests/pending'),
+                    apiGet('/api/access/grants/active'),
+                ]);
+                renderPendingRequests(pending.requests || []);
+                renderActiveGrants(grants.grants || []);
+            } catch (error) {
+                console.error('Failed to load access control:', error);
+            }
+        }
+        
+        function renderPendingRequests(requests) {
+            const container = document.getElementById('pending-requests-list');
+            if (requests.length === 0) {
+                container.innerHTML = '<div class="empty-state">NO_PENDING_REQUESTS</div>';
+                return;
+            }
+            
+            container.innerHTML = requests.map(req => `
+                <div class="access-item pending">
+                    <div>
+                        <div class="access-code">${escapeHtml(req.code)}</div>
+                        <div class="access-path">${escapeHtml(req.path)}</div>
+                        <div class="access-meta">MCP: ${escapeHtml(req.mcp_name)} | TOOL: ${escapeHtml(req.tool_name)}</div>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <select id="duration-${req.code}" style="background: rgba(0,10,0,0.8); border: 1px solid var(--phosphor-dark); color: var(--phosphor-primary); padding: 8px;">
+                            <option value="1">1_MIN</option>
+                            <option value="5">5_MIN</option>
+                            <option value="15">15_MIN</option>
+                            <option value="60">1_HR</option>
+                        </select>
+                        <button class="btn" onclick="approveRequest('${req.code}')">APPROVE</button>
+                        <button class="btn btn-danger" onclick="denyRequest('${req.code}')">DENY</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function renderActiveGrants(grants) {
+            const container = document.getElementById('active-grants-list');
+            if (grants.length === 0) {
+                container.innerHTML = '<div class="empty-state">NO_ACTIVE_GRANTS</div>';
+                return;
+            }
+            
+            container.innerHTML = grants.map(grant => `
+                <div class="access-item granted">
+                    <div>
+                        <div class="access-path">${escapeHtml(grant.path)}</div>
+                        <div class="access-meta">MCP: ${escapeHtml(grant.mcp_name)} | BY: ${grant.approved_by}</div>
+                    </div>
+                    <button class="btn btn-danger" onclick="revokeGrant('${grant.id}')">REVOKE</button>
+                </div>
+            `).join('');
+        }
+        
+        async function approveRequest(code) {
+            const duration = document.getElementById(`duration-${code}`)?.value || '1';
+            try {
+                await apiPost(`/api/access/requests/${code}/approve`, {
+                    duration_minutes: parseInt(duration),
+                    approved_by: 'TERMINAL'
+                });
+                showMessage(`ACCESS GRANTED FOR ${duration} MINUTE(S)`);
+                refreshAccessControl();
+            } catch (error) {
+                showMessage(`APPROVAL FAILED: ${error.message}`, true);
+            }
+        }
+        
+        async function denyRequest(code) {
+            if (!confirm('DENY THIS REQUEST?')) return;
+            try {
+                await apiPost(`/api/access/requests/${code}/deny`);
+                showMessage('REQUEST DENIED');
+                refreshAccessControl();
+            } catch (error) {
+                showMessage(`DENY FAILED: ${error.message}`, true);
+            }
+        }
+        
+        async function revokeGrant(grantId) {
+            if (!confirm('REVOKE THIS GRANT?')) return;
+            try {
+                await apiDelete(`/api/access/grants/${grantId}`);
+                showMessage('GRANT REVOKED');
+                refreshAccessControl();
+            } catch (error) {
+                showMessage(`REVOKE FAILED: ${error.message}`, true);
+            }
+        }
+        
+        // Config Changes
+        async function refreshConfigChanges() {
+            try {
+                const [pending, grants] = await Promise.all([
+                    apiGet('/api/config-changes/pending'),
+                    apiGet('/api/config-changes/grants'),
+                ]);
+                renderPendingConfigChanges(pending.requests || []);
+                renderActiveConfigGrants(grants.grants || []);
+            } catch (error) {
+                console.error('Failed to load config changes:', error);
+            }
+        }
+        
+        function renderPendingConfigChanges(requests) {
+            const container = document.getElementById('pending-config-changes-list');
+            if (requests.length === 0) {
+                container.innerHTML = '<div class="empty-state">NO_PENDING_CONFIG_CHANGES</div>';
+                return;
+            }
+            
+            container.innerHTML = requests.map(req => `
+                <div class="access-item pending">
+                    <div>
+                        <div class="access-code">${escapeHtml(req.code)}</div>
+                        <div class="access-path">${escapeHtml(req.server_name)}</div>
+                        <div style="margin-top: 8px;">
+                            ${req.sensitive_paths.map(p => `<code>${escapeHtml(p)}</code>`).join(' ')}
+                        </div>
+                        <div class="access-meta">CLI: mcp-gateway approve ${escapeHtml(req.code)}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function renderActiveConfigGrants(grants) {
+            const container = document.getElementById('active-config-grants-list');
+            if (grants.length === 0) {
+                container.innerHTML = '<div class="empty-state">NO_ACTIVE_CONFIG_GRANTS</div>';
+                return;
+            }
+            
+            container.innerHTML = grants.map(grant => `
+                <div class="access-item granted">
+                    <div>
+                        <div class="access-path">${escapeHtml(grant.server_name)}</div>
+                        <div style="margin-top: 8px;">
+                            ${grant.sensitive_paths.map(p => `<code>${escapeHtml(p)}</code>`).join(' ')}
+                        </div>
+                        <div class="access-meta">AUTO-REVERT SCHEDULED</div>
+                    </div>
+                    <button class="btn btn-danger" onclick="revertConfigChange('${grant.id}')">REVERT_NOW</button>
+                </div>
+            `).join('');
+        }
+        
+        async function revertConfigChange(grantId) {
+            if (!confirm('REVERT CONFIG CHANGE NOW?')) return;
+            try {
+                await apiDelete(`/api/config-changes/grants/${grantId}`);
+                showMessage('CONFIG CHANGE REVERTED');
+                refreshConfigChanges();
+                loadServers();
+            } catch (error) {
+                showMessage(`REVERT FAILED: ${error.message}`, true);
+            }
+        }
+        
+        // Modal Functions
+        function openAddModal() {
+            document.getElementById('modal-title').textContent = 'ADD_SERVER';
+            document.getElementById('original-name').value = '';
+            document.getElementById('server-form').reset();
+            selectType('stdio');
+            clearModalError();
+            document.getElementById('args-list').innerHTML = '';
+            document.getElementById('tools-section').classList.add('hidden');
+            document.getElementById('legacy-disabled-section').classList.remove('hidden');
+            document.getElementById('tools-list').innerHTML = '<div class="loading">LOADING TOOLS</div>';
+            currentTools = [];
+            document.getElementById('server-modal').classList.add('active');
+        }
+        
+        function closeModal() {
+            document.getElementById('server-modal').classList.remove('active');
+        }
+        
+        function selectType(type) {
+            currentType = type;
+            document.querySelectorAll('.type-option').forEach(el => el.classList.remove('active'));
+            document.getElementById(`type-${type}`).classList.add('active');
+            
+            if (type === 'stdio') {
+                document.getElementById('stdio-fields').classList.remove('hidden');
+                document.getElementById('remote-fields').classList.add('hidden');
+            } else {
+                document.getElementById('stdio-fields').classList.add('hidden');
+                document.getElementById('remote-fields').classList.remove('hidden');
+            }
+        }
+        
+        function addArgField(value = '') {
+            const argsList = document.getElementById('args-list');
+            const div = document.createElement('div');
+            div.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px;';
+            div.innerHTML = `
+                <input type="text" value="${escapeHtml(value)}" placeholder="argument" style="flex: 1;">
+                <button type="button" class="btn btn-small btn-danger" onclick="this.parentElement.remove()">REMOVE</button>
+            `;
+            argsList.appendChild(div);
+        }
+        
+        function collectArgs() {
+            const inputs = document.querySelectorAll('#args-list input');
+            return Array.from(inputs).map(input => input.value.trim()).filter(Boolean);
+        }
+        
+        async function editServer(name) {
+            const server = servers.find(s => s.name === name);
+            if (!server) return;
+            
+            document.getElementById('modal-title').textContent = 'EDIT_SERVER';
+            document.getElementById('original-name').value = server.name;
+            document.getElementById('server-name').value = server.name;
+            
+            document.getElementById('tools-section').classList.remove('hidden');
+            document.getElementById('legacy-disabled-section').classList.add('hidden');
+            document.getElementById('tools-list').innerHTML = '<div class="loading">LOADING TOOLS</div>';
+            
+            if (server.url) {
+                selectType('remote');
+                document.getElementById('server-url').value = server.url;
+                document.getElementById('server-transport').value = server.type || 'streamable-http';
+            } else {
+                selectType('stdio');
+                document.getElementById('server-base-command').value = server.command || '';
+                document.getElementById('args-list').innerHTML = '';
+                if (server.args) {
+                    server.args.forEach(arg => addArgField(arg));
+                }
+            }
+            
+            clearModalError();
+            document.getElementById('server-modal').classList.add('active');
+            
+            await loadToolsForServer(name);
+        }
+        
+        async function loadToolsForServer(serverName) {
+            try {
+                const response = await apiGet(`/api/servers/${encodeURIComponent(serverName)}/tools`);
+                const tools = response.tools || [];
+                const disabledTools = response.disabledTools || [];
+                currentTools = tools;
+                
+                const toolsListEl = document.getElementById('tools-list');
+                if (tools.length === 0) {
+                    toolsListEl.innerHTML = '<div class="empty-state">NO TOOLS AVAILABLE</div>';
+                    return;
+                }
+                
+                toolsListEl.innerHTML = `
+                    <div style="color: var(--amber); margin-bottom: 15px; text-transform: uppercase;">> Available Tools</div>
+                    ${tools.map(tool => {
+                        const toolName = typeof tool === 'object' ? tool.name : tool;
+                        const isDisabled = disabledTools.includes(toolName);
+                        return `
+                            <div class="tool-item ${isDisabled ? 'tool-disabled' : ''}" data-tool="${escapeHtml(toolName)}">
+                                <span class="tool-name">${escapeHtml(toolName)}</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" ${!isDisabled ? 'checked' : ''} onchange="toggleTool('${escapeHtml(toolName)}', this.checked)">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        `;
+                    }).join('')}
+                `;
+            } catch (error) {
+                document.getElementById('tools-list').innerHTML = `<div class="message message-error">ERROR: ${error.message}</div>`;
+            }
+        }
+        
+        function toggleTool(toolName, enabled) {
+            const item = document.querySelector(`.tool-item[data-tool="${CSS.escape(toolName)}"]`);
+            if (item) {
+                item.classList.toggle('tool-disabled', !enabled);
+            }
+        }
+        
+        function getDisabledTools() {
+            const disabled = [];
+            document.querySelectorAll('.tool-item').forEach(item => {
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                if (checkbox && !checkbox.checked) {
+                    disabled.push(item.dataset.tool);
+                }
+            });
+            return disabled;
+        }
+        
+        async function saveServer() {
+            clearModalError();
+            
+            const originalName = document.getElementById('original-name').value;
+            const name = document.getElementById('server-name').value.trim();
+            
+            if (!name) {
+                showModalError('SERVER NAME IS REQUIRED');
+                return;
+            }
+            
+            const config = {};
+            
+            const toolsSectionVisible = !document.getElementById('tools-section').classList.contains('hidden');
+            if (toolsSectionVisible) {
+                config.disabledTools = getDisabledTools();
+            } else {
+                const disabledStr = document.getElementById('server-disabled').value.trim();
+                config.disabledTools = disabledStr ? disabledStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+            }
+            
+            if (currentType === 'stdio') {
+                const baseCommand = document.getElementById('server-base-command').value.trim();
+                if (!baseCommand) {
+                    showModalError('COMMAND IS REQUIRED FOR STDIO SERVERS');
+                    return;
+                }
+                config.command = baseCommand;
+                config.args = collectArgs();
+            } else {
+                const url = document.getElementById('server-url').value.trim();
+                if (!url) {
+                    showModalError('URL IS REQUIRED FOR REMOTE SERVERS');
+                    return;
+                }
+                config.url = url;
+                config.type = document.getElementById('server-transport').value;
+            }
+            
+            try {
+                if (originalName) {
+                    if (originalName !== name) {
+                        await apiDelete(`/api/servers/${encodeURIComponent(originalName)}`);
+                        await apiPost('/api/servers', { name, config });
+                    } else {
+                        const response = await fetch(`/api/servers/${encodeURIComponent(name)}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(config)
+                        });
+                        const result = await response.json();
+                        if (!response.ok) throw new Error(result.detail || 'FAILED TO UPDATE');
+                        if (result.requires_approval) {
+                            closeModal();
+                            showMessage(`CONFIG CHANGE REQUIRES APPROVAL. CODE: ${result.approval_code}`, true);
+                            refreshConfigChanges();
+                            return;
+                        }
+                    }
+                    showMessage(`SERVER '${name}' UPDATED SUCCESSFULLY`);
+                } else {
+                    await apiPost('/api/servers', { name, config });
+                    showMessage(`SERVER '${name}' ADDED SUCCESSFULLY`);
+                }
+                
+                closeModal();
+                loadServers();
+                setTimeout(() => triggerReload(), 500);
+            } catch (error) {
+                showModalError(error.message);
+            }
+        }
+        
+        async function deleteServer(name) {
+            if (!confirm(`DELETE SERVER '${name}'?`)) return;
+            try {
+                await apiDelete(`/api/servers/${encodeURIComponent(name)}`);
+                showMessage(`SERVER '${name}' DELETED`);
+                loadServers();
+                setTimeout(() => triggerReload(), 500);
+            } catch (error) {
+                showMessage(`DELETE FAILED: ${error.message}`, true);
+            }
+        }
+        
+        async function triggerReload() {
+            try {
+                await apiPost('/api/reload');
+                showMessage('CONFIGURATION RELOADED');
+            } catch (error) {
+                showMessage(`RELOAD FAILED: ${error.message}`, true);
+            }
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadServers();
+            refreshAccessControl();
+            refreshConfigChanges();
+            setInterval(() => {
+                loadServers();
+                refreshAccessControl();
+                refreshConfigChanges();
+            }, 5000);
+        });
+        
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeModal();
+        });
+        
+        document.getElementById('server-modal').addEventListener('click', e => {
+            if (e.target.id === 'server-modal') closeModal();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Gateway :: TERMINAL v2.4</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --phosphor-primary: #33ff33;
+            --phosphor-dim: #0f0;
+            --phosphor-bright: #7fff7f;
+            --phosphor-dark: #080;
+            --bg-color: #050505;
+            --scanline: rgba(0, 255, 0, 0.03);
+        }
+        
+        body {
+            font-family: 'VT323', 'Courier New', monospace;
+            background: var(--bg-color);
+            color: var(--phosphor-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+            font-size: 20px;
+            text-shadow: 0 0 2px var(--phosphor-dim), 0 0 8px var(--phosphor-dim);
+        }
+        
+        /* CRT Screen Effects */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                to bottom,
+                var(--scanline) 0%,
+                transparent 50%,
+                var(--scanline) 100%
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 1000;
+            animation: scanlines 0.1s linear infinite;
+        }
+        
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(
+                ellipse at center,
+                transparent 0%,
+                rgba(0, 0, 0, 0.4) 90%,
+                rgba(0, 0, 0, 0.7) 100%
+            );
+            pointer-events: none;
+            z-index: 1001;
+        }
+        
+        @keyframes scanlines {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(4px); }
+        }
+        
+        /* Screen flicker */
+        @keyframes flicker {
+            0% { opacity: 0.97; }
+            5% { opacity: 0.99; }
+            10% { opacity: 0.94; }
+            15% { opacity: 0.98; }
+            20% { opacity: 0.96; }
+            25% { opacity: 0.99; }
+            30% { opacity: 0.93; }
+            35% { opacity: 0.98; }
+            40% { opacity: 0.96; }
+            45% { opacity: 0.99; }
+            50% { opacity: 0.95; }
+            55% { opacity: 0.98; }
+            60% { opacity: 0.97; }
+            65% { opacity: 0.99; }
+            70% { opacity: 0.94; }
+            75% { opacity: 0.98; }
+            80% { opacity: 0.96; }
+            85% { opacity: 0.99; }
+            90% { opacity: 0.95; }
+            95% { opacity: 0.98; }
+            100% { opacity: 0.97; }
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 10;
+            animation: flicker 0.15s infinite;
+        }
+        
+        /* Terminal Header */
+        header {
+            border: 3px solid var(--phosphor-primary);
+            padding: 20px;
+            margin-bottom: 30px;
+            position: relative;
+            background: rgba(0, 20, 0, 0.3);
+            box-shadow: 
+                0 0 20px rgba(0, 255, 0, 0.2),
+                inset 0 0 20px rgba(0, 255, 0, 0.05);
+        }
+        
+        header::before {
+            content: '◆';
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background: var(--bg-color);
+            padding: 0 10px;
+            color: var(--phosphor-primary);
+            font-size: 16px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            text-shadow: 
+                0 0 10px var(--phosphor-primary),
+                0 0 20px var(--phosphor-primary),
+                0 0 40px var(--phosphor-primary);
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: var(--phosphor-dim);
+            font-size: 1.25rem;
+            letter-spacing: 2px;
+        }
+        
+        .subtitle::before {
+            content: '> ';
+        }
+        
+        /* Navigation */
+        .nav {
+            display: flex;
+            gap: 5px;
+            margin-top: 20px;
+            border-top: 1px solid var(--phosphor-dark);
+            padding-top: 15px;
+        }
+        
+        .nav a {
+            color: var(--phosphor-dim);
+            text-decoration: none;
+            padding: 8px 20px;
+            border: 1px solid var(--phosphor-dark);
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 1.05rem;
+        }
+        
+        .nav a:hover {
+            color: var(--phosphor-bright);
+            border-color: var(--phosphor-primary);
+            background: rgba(0, 255, 0, 0.1);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
+            text-shadow: 0 0 10px var(--phosphor-primary);
+        }
+        
+        .nav a.active {
+            color: var(--phosphor-primary);
+            border-color: var(--phosphor-primary);
+            background: rgba(0, 255, 0, 0.15);
+            box-shadow: 
+                0 0 20px rgba(0, 255, 0, 0.4),
+                inset 0 0 10px rgba(0, 255, 0, 0.1);
+        }
+        
+        /* Terminal Box */
+        .terminal-box {
+            border: 2px solid var(--phosphor-primary);
+            margin-bottom: 25px;
+            position: relative;
+            background: rgba(0, 10, 0, 0.5);
+        }
+        
+        .terminal-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--phosphor-bright), transparent);
+            animation: scan 3s linear infinite;
+        }
+        
+        @keyframes scan {
+            0% { transform: translateY(0); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(400px); opacity: 0; }
+        }
+        
+        .box-header {
+            background: linear-gradient(90deg, var(--phosphor-dark), transparent);
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--phosphor-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .box-title {
+            font-size: 1.3rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+        
+        .box-title::before {
+            content: '[ ';
+        }
+        
+        .box-title::after {
+            content: ' ]';
+        }
+        
+        .box-content {
+            padding: 20px;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .stat-card {
+            border: 1px solid var(--phosphor-dim);
+            padding: 20px;
+            text-align: center;
+            position: relative;
+            background: rgba(0, 20, 0, 0.3);
+        }
+        
+        .stat-card::before {
+            content: '◢';
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            color: var(--phosphor-dark);
+            font-size: 0.95rem;
+        }
+        
+        .stat-label {
+            font-size: 1rem;
+            color: var(--phosphor-dim);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-label::before {
+            content: '// ';
+        }
+        
+        .stat-value {
+            font-size: 3rem;
+            font-weight: bold;
+            text-shadow: 0 0 20px var(--phosphor-primary);
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            text-align: left;
+            padding: 12px 15px;
+            border: 1px solid var(--phosphor-dark);
+        }
+        
+        th {
+            background: rgba(0, 30, 0, 0.5);
+            color: var(--phosphor-bright);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 1.05rem;
+        }
+        
+        th::before {
+            content: '# ';
+        }
+        
+        tr:hover {
+            background: rgba(0, 255, 0, 0.05);
+        }
+        
+        tr:hover td {
+            color: var(--phosphor-bright);
+            text-shadow: 0 0 10px var(--phosphor-primary);
+        }
+        
+        /* Buttons */
+        .btn {
+            font-family: 'VT323', monospace;
+            padding: 10px 20px;
+            border: 1px solid var(--phosphor-primary);
+            background: transparent;
+            color: var(--phosphor-primary);
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 1.05rem;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 0, 0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .btn:hover::before {
+            left: 100%;
+        }
+        
+        .btn:hover {
+            background: rgba(0, 255, 0, 0.15);
+            box-shadow: 
+                0 0 20px rgba(0, 255, 0, 0.4),
+                inset 0 0 10px rgba(0, 255, 0, 0.1);
+            text-shadow: 0 0 10px var(--phosphor-primary);
+        }
+        
+        .btn:active {
+            background: rgba(0, 255, 0, 0.25);
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.95rem;
+        }
+        
+        /* Status Indicators */
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border: 1px solid;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 1rem;
+        }
+        
+        .status-online {
+            color: #0f0;
+            border-color: #0f0;
+            background: rgba(0, 255, 0, 0.1);
+            text-shadow: 0 0 10px #0f0;
+            animation: pulse-green 2s infinite;
+        }
+        
+        .status-offline {
+            color: #f00;
+            border-color: #f00;
+            background: rgba(255, 0, 0, 0.1);
+            text-shadow: 0 0 10px #f00;
+        }
+        
+        @keyframes pulse-green {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        /* Tool Tags */
+        .tool-tag {
+            display: inline-block;
+            border: 1px solid var(--phosphor-dim);
+            padding: 4px 10px;
+            margin: 3px;
+            font-size: 1rem;
+            background: rgba(0, 20, 0, 0.5);
+        }
+        
+        .tool-tag::before {
+            content: '>';
+            margin-right: 5px;
+            color: var(--phosphor-dim);
+        }
+        
+        .tool-tag:hover {
+            border-color: var(--phosphor-primary);
+            background: rgba(0, 255, 0, 0.1);
+            text-shadow: 0 0 10px var(--phosphor-primary);
+        }
+        
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--phosphor-dim);
+        }
+        
+        .loading::before {
+            content: 'LOADING';
+            animation: loading-text 1.5s infinite;
+        }
+        
+        @keyframes loading-text {
+            0%, 100% { content: 'LOADING'; }
+            25% { content: 'LOADING.'; }
+            50% { content: 'LOADING..'; }
+            75% { content: 'LOADING...'; }
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--phosphor-dark);
+            border: 1px dashed var(--phosphor-dark);
+        }
+        
+        .empty-state::before {
+            content: '[ NULL ]';
+            display: block;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+        
+        /* Blinking Cursor */
+        .cursor {
+            display: inline-block;
+            width: 12px;
+            height: 20px;
+            background: var(--phosphor-primary);
+            animation: blink 1s step-end infinite;
+            vertical-align: middle;
+            margin-left: 5px;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        
+        /* Matrix Rain Effect Container */
+        .matrix-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.03;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+            
+            .nav {
+                flex-wrap: wrap;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .stat-value {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas class="matrix-bg" id="matrix"></canvas>
+    
+    <div class="container">
+        <header>
+            <h1>MCP GATEWAY<span class="cursor"></span></h1>
+            <p class="subtitle">SYSTEM MONITORING TERMINAL v2.4</p>
+            <nav class="nav">
+                <a href="/retro" class="active">[DASHBOARD]</a>
+                <a href="/retro-admin">[ADMIN]</a>
+                <a href="/">[STD_VIEW]</a>
+            </nav>
+        </header>
+        
+        <!-- Stats Section -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Backends</div>
+                <div class="stat-value" id="stat-total">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Connected</div>
+                <div class="stat-value" id="stat-connected">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Disconnected</div>
+                <div class="stat-value" id="stat-disconnected">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Tool Count</div>
+                <div class="stat-value" id="stat-tools">--</div>
+            </div>
+        </div>
+        
+        <!-- Backends Section -->
+        <div class="terminal-box">
+            <div class="box-header">
+                <span class="box-title">BACKEND_NODES</span>
+                <button class="btn" onclick="refreshData()">RELOAD_DATA</button>
+            </div>
+            <div class="box-content">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Status</th>
+                            <th>Type</th>
+                            <th>Tools</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="backends-tbody">
+                        <tr>
+                            <td colspan="5" class="loading"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Tools Section -->
+        <div class="terminal-box">
+            <div class="box-header">
+                <span class="box-title">AVAILABLE_TOOLS</span>
+            </div>
+            <div class="box-content">
+                <div id="tools-container">
+                    <div class="loading"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Supervision Section -->
+        <div class="terminal-box">
+            <div class="box-header">
+                <span class="box-title">SUPERVISION_STATUS</span>
+            </div>
+            <div class="box-content">
+                <div id="supervision-container">
+                    <div class="loading"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Matrix Rain Effect
+        const canvas = document.getElementById('matrix');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+        const fontSize = 16;
+        const columns = canvas.width / fontSize;
+        const drops = [];
+        
+        for (let i = 0; i < columns; i++) {
+            drops[i] = Math.random() * -100;
+        }
+        
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#0f0';
+            ctx.font = fontSize + 'px monospace';
+            
+            for (let i = 0; i < drops.length; i++) {
+                const text = chars[Math.floor(Math.random() * chars.length)];
+                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                
+                if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+        
+        setInterval(drawMatrix, 50);
+        
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+        
+        // API Functions
+        async function apiGet(endpoint) {
+            const response = await fetch(endpoint);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.json();
+        }
+        
+        async function apiPost(endpoint) {
+            const response = await fetch(endpoint, { method: 'POST' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.json();
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        async function refreshData() {
+            try {
+                const [health, supervision, backends] = await Promise.all([
+                    apiGet('/health'),
+                    apiGet('/supervision').catch(() => ({ enabled: false })),
+                    apiGet('/backends'),
+                ]);
+                
+                // Fetch tools
+                const backendsWithTools = await Promise.all(
+                    (backends.backends || []).map(async backend => {
+                        try {
+                            const toolsRes = await apiGet(`/api/servers/${encodeURIComponent(backend.name)}/tools`);
+                            return { ...backend, tools_list: toolsRes.tools || [] };
+                        } catch {
+                            return { ...backend, tools_list: [] };
+                        }
+                    })
+                );
+                backends.backends = backendsWithTools;
+                
+                updateStats(health);
+                updateBackends(health, supervision);
+                updateTools(backends);
+                updateSupervision(supervision);
+            } catch (error) {
+                console.error('Failed to refresh:', error);
+            }
+        }
+        
+        function updateStats(health) {
+            const total = health.total_backends || 0;
+            const connected = health.connected_backends || 0;
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-connected').textContent = connected;
+            document.getElementById('stat-disconnected').textContent = total - connected;
+            document.getElementById('stat-tools').textContent = health.total_tools || 0;
+        }
+        
+        function updateBackends(health, supervision) {
+            const tbody = document.getElementById('backends-tbody');
+            const backends = health.backends || [];
+            const supStats = supervision?.backends || {};
+            
+            if (backends.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">NO_BACKENDS_CONFIGURED</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = backends.map((backend, idx) => {
+                const sup = supStats[backend.name] || {};
+                const status = sup.state || (backend.connected ? 'running' : 'stopped');
+                const statusClass = backend.connected ? 'status-online' : 'status-offline';
+                const statusText = backend.connected ? 'ONLINE' : 'OFFLINE';
+                
+                return `
+                    <tr>
+                        <td>${String(idx + 1).padStart(3, '0')} | ${escapeHtml(backend.name)}</td>
+                        <td><span class="status ${statusClass}">${statusText}</span></td>
+                        <td>${escapeHtml(backend.type)}</td>
+                        <td>${backend.tools}</td>
+                        <td>
+                            ${!backend.connected ? `<button class="btn btn-small" onclick="restartBackend('${escapeHtml(backend.name)}')">RESTART</button>` : '--'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        function updateTools(backends) {
+            const container = document.getElementById('tools-container');
+            const allBackends = backends.backends || [];
+            
+            if (allBackends.length === 0) {
+                container.innerHTML = '<div class="empty-state">NO_BACKENDS_CONNECTED</div>';
+                return;
+            }
+            
+            const hasTools = allBackends.some(b => (b.tools_list || []).length > 0);
+            if (!hasTools) {
+                container.innerHTML = '<div class="empty-state">NO_TOOLS_AVAILABLE</div>';
+                return;
+            }
+            
+            container.innerHTML = allBackends.map(backend => {
+                const tools = backend.tools_list || [];
+                if (tools.length === 0) return '';
+                return `
+                    <div style="margin-bottom: 20px;">
+                        <div style="color: var(--phosphor-dim); margin-bottom: 10px; text-transform: uppercase;">
+                            // ${escapeHtml(backend.name)} [${tools.length} TOOLS]
+                        </div>
+                        <div>
+                            ${tools.map(tool => {
+                                const toolName = typeof tool === 'object' ? tool.name : tool;
+                                return `<span class="tool-tag">${escapeHtml(toolName)}</span>`;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('') || '<div class="empty-state">NO_TOOLS_AVAILABLE</div>';
+        }
+        
+        function updateSupervision(supervision) {
+            const container = document.getElementById('supervision-container');
+            if (!supervision.enabled) {
+                container.innerHTML = '<div class="empty-state">SUPERVISION_DISABLED</div>';
+                return;
+            }
+            
+            const stats = supervision.backends || {};
+            const backends = Object.entries(stats);
+            
+            if (backends.length === 0) {
+                container.innerHTML = '<div class="empty-state">NO_SUPERVISED_BACKENDS</div>';
+                return;
+            }
+            
+            container.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Node</th>
+                            <th>State</th>
+                            <th>Starts</th>
+                            <th>Crashes</th>
+                            <th>Uptime</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${backends.map(([name, stat]) => `
+                            <tr>
+                                <td>${escapeHtml(name)}</td>
+                                <td><span class="status ${stat.is_running ? 'status-online' : 'status-offline'}">${stat.state.toUpperCase()}</span></td>
+                                <td>${stat.starts}</td>
+                                <td>${stat.crashes}</td>
+                                <td>${formatDuration(stat.uptime_seconds)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+        
+        async function restartBackend(name) {
+            try {
+                await apiPost(`/backends/${encodeURIComponent(name)}/restart`);
+                setTimeout(refreshData, 1000);
+            } catch (error) {
+                console.error('Failed to restart:', error);
+            }
+        }
+        
+        function formatDuration(seconds) {
+            if (!seconds) return '0s';
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            if (hours > 0) return `${hours}h${minutes}m`;
+            if (minutes > 0) return `${minutes}m${secs}s`;
+            return `${secs}s`;
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshData();
+            setInterval(refreshData, 5000);
+        });
+    </script>
+</body>
+</html>
