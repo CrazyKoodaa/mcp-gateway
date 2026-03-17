@@ -567,7 +567,8 @@ class TestRevertConfigChange:
     @pytest.mark.asyncio
     async def test_manual_revert_removes_grant(self, manager):
         """Revert should remove the grant from storage."""
-        # Note: This test is limited due to implementation bug (references original_config instead of original_args)
+        # Note: This test is limited due to implementation bug
+        # (references original_config instead of original_args)
         # Create a mock to avoid the callback error
         manager._config_revert_callback = None
 

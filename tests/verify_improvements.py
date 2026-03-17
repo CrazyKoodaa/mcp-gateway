@@ -77,7 +77,8 @@ def test_path_security():
     # Test sensitive path detection
     result = service.check_path("/etc/passwd")
     print(
-        f"    Debug: /etc/passwd -> is_sensitive={result.is_sensitive}, pattern={result.matched_pattern}"
+        f"    Debug: /etc/passwd -> is_sensitive={result.is_sensitive}, "
+        f"pattern={result.matched_pattern}"
     )
     assert result.is_sensitive, f"Expected /etc/passwd to be sensitive, got {result}"
 
@@ -89,14 +90,16 @@ def test_path_security():
     # Test wildcard patterns - pattern /home/*/.ssh matches exactly
     result = service.check_path("/home/user/.ssh")
     print(
-        f"    Debug: /home/user/.ssh -> is_sensitive={result.is_sensitive}, pattern={result.matched_pattern}"
+        f"    Debug: /home/user/.ssh -> is_sensitive={result.is_sensitive}, "
+        f"pattern={result.matched_pattern}"
     )
     assert result.is_sensitive
 
     # Test wildcard with file extension pattern
     result = service.check_path("/home/user/secrets.pem")
     print(
-        f"    Debug: /home/user/secrets.pem -> is_sensitive={result.is_sensitive}, pattern={result.matched_pattern}"
+        f"    Debug: /home/user/secrets.pem -> is_sensitive={result.is_sensitive}, "
+        f"pattern={result.matched_pattern}"
     )
     assert result.is_sensitive
 
