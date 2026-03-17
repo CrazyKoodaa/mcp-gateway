@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Gateway - Logs Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            font-size: 0.95rem;
+        }
+
+        .nav {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .nav a {
+            color: #94a3b8;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .nav a:hover {
+            color: #f8fafc;
+            background: #334155;
+        }
+
+        .nav a.active {
+            color: #60a5fa;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        /* Filter Panel */
+        .filter-panel {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid #334155;
+        }
+
+        .filter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .filter-header h2 {
+            font-size: 1.25rem;
+            color: #f8fafc;
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .filter-group label {
+            font-size: 0.875rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 10px 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 0.875rem;
+        }
+
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        .btn-primary:hover { background: #2563eb; }
+
+        .btn-secondary {
+            background: #334155;
+            color: #e2e8f0;
+        }
+        .btn-secondary:hover { background: #475569; }
+
+        .btn-success {
+            background: #22c55e;
+            color: white;
+        }
+        .btn-success:hover { background: #16a34a; }
+
+        /* Log Stats */
+        .stats-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-badge {
+            background: #1e293b;
+            padding: 12px 20px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .stat-badge.debug { border-left: 4px solid #64748b; }
+        .stat-badge.info { border-left: 4px solid #3b82f6; }
+        .stat-badge.warning { border-left: 4px solid #f59e0b; }
+        .stat-badge.error { border-left: 4px solid #ef4444; }
+
+        .stat-badge .count {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .stat-badge .label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+
+        /* Logs Container */
+        .logs-container {
+            background: #1e293b;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            overflow: hidden;
+        }
+
+        .logs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background: #0f172a;
+            border-bottom: 1px solid #334155;
+        }
+
+        .logs-header h3 {
+            font-size: 1rem;
+            color: #f8fafc;
+        }
+
+        .logs-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .logs-controls select {
+            padding: 6px 12px;
+            background: #334155;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 0.875rem;
+        }
+
+        .logs-list {
+            max-height: 700px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 12px 20px;
+            border-bottom: 1px solid #334155;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            display: grid;
+            grid-template-columns: 180px 80px 120px 1fr;
+            gap: 16px;
+            align-items: start;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-entry:hover {
+            background: #252f47;
+        }
+
+        .log-timestamp {
+            color: #64748b;
+            font-size: 0.75rem;
+        }
+
+        .log-level {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        .log-level.debug { background: #64748b; color: #f8fafc; }
+        .log-level.info { background: #3b82f6; color: #f8fafc; }
+        .log-level.warning { background: #f59e0b; color: #0f172a; }
+        .log-level.error { background: #ef4444; color: #f8fafc; }
+
+        .log-service {
+            color: #a78bfa;
+            font-size: 0.75rem;
+        }
+
+        .log-message {
+            color: #e2e8f0;
+            word-break: break-word;
+        }
+
+        .log-message .highlight {
+            background: rgba(251, 191, 36, 0.2);
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #64748b;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background: #0f172a;
+            border-top: 1px solid #334155;
+        }
+
+        .pagination-info {
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+
+        .pagination-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .pagination-btn {
+            padding: 6px 12px;
+            background: #334155;
+            border: none;
+            border-radius: 6px;
+            color: #e2e8f0;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            background: #475569;
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Auto-refresh indicator */
+        .refresh-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #334155;
+            border-top-color: #22c55e;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Scrollbar */
+        .logs-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .logs-list::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        .logs-list::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+
+        .logs-list::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        @media (max-width: 1024px) {
+            .log-entry {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📋 MCP Gateway Logs</h1>
+            <p class="subtitle">View and filter application logs</p>
+            <nav class="nav">
+                <a href="/">Dashboard</a>
+                <a href="/admin">Admin</a>
+                <a href="/logs" class="active">Logs</a>
+            </nav>
+        </header>
+
+        <!-- Filter Panel -->
+        <div class="filter-panel">
+            <div class="filter-header">
+                <h2>🔍 Filter Logs</h2>
+                <div class="refresh-indicator">
+                    <div class="spinner" id="loading-spinner" style="display: none;"></div>
+                    <span id="last-updated">Live</span>
+                </div>
+            </div>
+
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <label for="filter-level">Log Level</label>
+                    <select id="filter-level">
+                        <option value="">All Levels</option>
+                        <option value="debug">Debug</option>
+                        <option value="info">Info</option>
+                        <option value="warning">Warning</option>
+                        <option value="error">Error</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-service">Service</label>
+                    <select id="filter-service">
+                        <option value="">All Services</option>
+                        <option value="mcp-gateway">Gateway</option>
+                        <option value="backend">Backend</option>
+                        <option value="auth">Auth</option>
+                        <option value="audit">Audit</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-search">Search Message</label>
+                    <input type="text" id="filter-search" placeholder="Search in logs...">
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-time">Time Range</label>
+                    <select id="filter-time">
+                        <option value="15">Last 15 minutes</option>
+                        <option value="30">Last 30 minutes</option>
+                        <option value="60" selected>Last 1 hour</option>
+                        <option value="360">Last 6 hours</option>
+                        <option value="1440">Last 24 hours</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="filter-actions">
+                <button class="btn btn-secondary" onclick="clearFilters()">Clear Filters</button>
+                <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+                <button class="btn btn-success" onclick="downloadLogs()">📥 Download</button>
+            </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="stats-row" id="stats-row">
+            <div class="stat-badge info">
+                <span class="count" id="stat-info">0</span>
+                <span class="label">Info</span>
+            </div>
+            <div class="stat-badge warning">
+                <span class="count" id="stat-warning">0</span>
+                <span class="label">Warning</span>
+            </div>
+            <div class="stat-badge error">
+                <span class="count" id="stat-error">0</span>
+                <span class="label">Error</span>
+            </div>
+            <div class="stat-badge debug">
+                <span class="count" id="stat-debug">0</span>
+                <span class="label">Debug</span>
+            </div>
+        </div>
+
+        <!-- Logs Container -->
+        <div class="logs-container">
+            <div class="logs-header">
+                <h3>📝 Log Entries</h3>
+                <div class="logs-controls">
+                    <label for="per-page" style="font-size: 0.875rem; color: #94a3b8;">Per page:</label>
+                    <select id="per-page" onchange="changePerPage()">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="200">200</option>
+                        <option value="500">500</option>
+                    </select>
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 0.875rem; color: #94a3b8;">
+                        <input type="checkbox" id="auto-refresh" checked onchange="toggleAutoRefresh()">
+                        Auto-refresh
+                    </label>
+                </div>
+            </div>
+
+            <div class="logs-list" id="logs-list">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <p>Loading logs...</p>
+                </div>
+            </div>
+
+            <div class="pagination">
+                <div class="pagination-info" id="pagination-info">
+                    Showing 0-0 of 0 entries
+                </div>
+                <div class="pagination-controls">
+                    <button class="pagination-btn" id="prev-btn" onclick="prevPage()" disabled>Previous</button>
+                    <button class="pagination-btn" id="next-btn" onclick="nextPage()">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let logs = [];
+        let filteredLogs = [];
+        let currentPage = 1;
+        let perPage = 100;
+
+        // API helper
+        async function apiGet(endpoint) {
+            const response = await fetch(endpoint);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.json();
+        }
+
+        // Load logs
+        async function loadLogs() {
+            try {
+                document.getElementById('loading-spinner').style.display = 'block';
+                
+                const minutes = document.getElementById('filter-time').value;
+                const level = document.getElementById('filter-level').value;
+                const service = document.getElementById('filter-service').value;
+                const search = document.getElementById('filter-search').value;
+                
+                // Build query string with all filters
+                let queryParams = new URLSearchParams();
+                queryParams.append('minutes', minutes);
+                if (level) queryParams.append('level', level);
+                if (service) queryParams.append('service', service);
+                if (search) queryParams.append('search', search);
+                queryParams.append('limit', '5000');
+                
+                const data = await apiGet(`/api/logs?${queryParams.toString()}`);
+                
+                logs = data.logs || [];
+                applyFilters();
+                
+                const now = new Date();
+                document.getElementById('last-updated').textContent = `Updated: ${now.toLocaleTimeString()}`;
+            } catch (error) {
+                console.error('Failed to load logs:', error);
+                document.getElementById('logs-list').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">❌</div>
+                        <p>Failed to load logs: ${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                document.getElementById('loading-spinner').style.display = 'none';
+            }
+        }
+
+        // Apply filters
+        function applyFilters() {
+            const level = document.getElementById('filter-level').value.toLowerCase();
+            const service = document.getElementById('filter-service').value.toLowerCase();
+            const search = document.getElementById('filter-search').value.toLowerCase();
+
+            filteredLogs = logs.filter(log => {
+                // Level filter
+                if (level && log.level?.toLowerCase() !== level) return false;
+                
+                // Service filter
+                if (service && !log.service?.toLowerCase().includes(service)) return false;
+                
+                // Search filter
+                if (search && !log.message?.toLowerCase().includes(search)) return false;
+                
+                return true;
+            });
+
+            // Sort by timestamp (newest first)
+            filteredLogs.sort((a, b) => {
+                const timeA = new Date(a.timestamp || 0);
+                const timeB = new Date(b.timestamp || 0);
+                return timeB - timeA;
+            });
+
+            // Update stats
+            updateStats();
+
+            // Reset to first page
+            currentPage = 1;
+            renderLogs();
+            updatePagination();
+        }
+
+        // Clear filters
+        function clearFilters() {
+            document.getElementById('filter-level').value = '';
+            document.getElementById('filter-service').value = '';
+            document.getElementById('filter-search').value = '';
+            document.getElementById('filter-time').value = '60';
+            applyFilters();
+        }
+
+        // Update stats
+        function updateStats() {
+            const counts = {
+                debug: 0,
+                info: 0,
+                warning: 0,
+                error: 0
+            };
+
+            filteredLogs.forEach(log => {
+                const level = log.level?.toLowerCase();
+                if (counts.hasOwnProperty(level)) {
+                    counts[level]++;
+                }
+            });
+
+            document.getElementById('stat-debug').textContent = counts.debug;
+            document.getElementById('stat-info').textContent = counts.info;
+            document.getElementById('stat-warning').textContent = counts.warning;
+            document.getElementById('stat-error').textContent = counts.error;
+        }
+
+        // Render logs
+        function renderLogs() {
+            const container = document.getElementById('logs-list');
+            const start = (currentPage - 1) * perPage;
+            const end = start + perPage;
+            const pageLogs = filteredLogs.slice(start, end);
+
+            if (pageLogs.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <p>No logs found matching your filters</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = pageLogs.map(log => {
+                const level = (log.level || 'info').toLowerCase();
+                const timestamp = log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A';
+                const message = highlightSearch(log.message || '');
+
+                return `
+                    <div class="log-entry">
+                        <div class="log-timestamp">${escapeHtml(timestamp)}</div>
+                        <div class="log-level ${level}">${escapeHtml(level)}</div>
+                        <div class="log-service">${escapeHtml(log.service || 'mcp-gateway')}</div>
+                        <div class="log-message">${message}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Highlight search term
+        function highlightSearch(message) {
+            const search = document.getElementById('filter-search').value;
+            if (!search) return escapeHtml(message);
+
+            const regex = new RegExp(`(${escapeHtml(search)})`, 'gi');
+            return escapeHtml(message).replace(regex, '<span class="highlight">$1</span>');
+        }
+
+        // Update pagination
+        function updatePagination() {
+            const total = filteredLogs.length;
+            const start = (currentPage - 1) * perPage + 1;
+            const end = Math.min(currentPage * perPage, total);
+
+            document.getElementById('pagination-info').textContent = 
+                `Showing ${start}-${end} of ${total} entries`;
+
+            document.getElementById('prev-btn').disabled = currentPage === 1;
+            document.getElementById('next-btn').disabled = end >= total;
+        }
+
+        // Pagination functions
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                renderLogs();
+                updatePagination();
+            }
+        }
+
+        function nextPage() {
+            const maxPage = Math.ceil(filteredLogs.length / perPage);
+            if (currentPage < maxPage) {
+                currentPage++;
+                renderLogs();
+                updatePagination();
+            }
+        }
+
+        function changePerPage() {
+            perPage = parseInt(document.getElementById('per-page').value);
+            currentPage = 1;
+            renderLogs();
+            updatePagination();
+        }
+
+        // Auto-refresh
+        let autoRefreshEnabled = true;
+        let refreshInterval = null;
+        const REFRESH_INTERVAL_MS = 5000;
+
+        function toggleAutoRefresh() {
+            autoRefreshEnabled = document.getElementById('auto-refresh').checked;
+            
+            if (autoRefreshEnabled) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+                document.getElementById('last-updated').textContent = 'Paused';
+            }
+        }
+
+        function startAutoRefresh() {
+            if (refreshInterval) clearInterval(refreshInterval);
+            refreshInterval = setInterval(loadLogs, REFRESH_INTERVAL_MS);
+        }
+
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+        }
+
+        // Download logs
+        function downloadLogs() {
+            const content = filteredLogs.map(log => 
+                `[${log.timestamp || 'N/A'}] [${(log.level || 'info').toUpperCase()}] [${log.service || 'mcp-gateway'}] ${log.message || ''}`
+            ).join('\n');
+
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `mcp-gateway-logs-${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Helper: Escape HTML
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadLogs();
+            startAutoRefresh();
+        });
+
+        // Cleanup
+        window.addEventListener('beforeunload', stopAutoRefresh);
+
+        // Trigger auto-refresh on filter changes
+        document.getElementById('filter-level').addEventListener('change', () => {
+            loadLogs();
+        });
+        document.getElementById('filter-service').addEventListener('change', () => {
+            loadLogs();
+        });
+        document.getElementById('filter-time').addEventListener('change', () => {
+            loadLogs();
+        });
+        // Search with debounce
+        let searchTimeout;
+        document.getElementById('filter-search').addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                loadLogs();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

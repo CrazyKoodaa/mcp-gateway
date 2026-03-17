@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -28,6 +29,7 @@ def setup_http_routes(
     _setup_health_routes(app, deps)
     _setup_admin_routes(app, deps)
     _setup_server_routes(app, deps)
+    _setup_logs_routes(app, deps)
     if enable_access_control and deps.config_approval:
         _setup_approval_routes(app, deps)
 
@@ -921,3 +923,181 @@ def _setup_approval_routes(app: FastAPI, deps: ServerDependencies) -> None:
             if grant
             else None,
         }
+
+
+def _setup_logs_routes(app: FastAPI, deps: ServerDependencies) -> None:
+    """Setup logs viewer routes."""
+    from pathlib import Path
+    
+    TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
+
+    @app.get("/logs", response_class=HTMLResponse, tags=["logs"])
+    async def logs_page() -> HTMLResponse:
+        """Serve the logs viewer page."""
+        template_path = TEMPLATE_DIR / "logs.html"
+        if not template_path.exists():
+            raise HTTPException(status_code=404, detail="Logs page not found")
+        
+        with open(template_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+
+    @app.get("/api/logs", tags=["logs"])
+    async def get_logs(
+        minutes: int = 60,
+        level: str | None = None,
+        service: str | None = None,
+        search: str | None = None,
+        limit: int = 1000,
+    ) -> dict[str, Any]:
+        """Get application logs with filtering.
+        
+        Args:
+            minutes: Time range in minutes (default: 60)
+            level: Filter by log level (debug, info, warning, error)
+            service: Filter by service name
+            search: Search in log messages
+            limit: Maximum number of logs to return
+            
+        Returns:
+            List of log entries with metadata
+        """
+        import glob
+        import re
+        from datetime import datetime, timedelta
+        
+        # Calculate cutoff time
+        cutoff = datetime.now() - timedelta(minutes=minutes)
+        
+        # Find log files
+        log_dir = Path.cwd() / "logs"
+        log_files = []
+        
+        if log_dir.exists():
+            # Find all log files
+            log_files = glob.glob(str(log_dir / "*.log")) + \
+                       glob.glob(str(log_dir / "*.json")) + \
+                       glob.glob(str(log_dir / "*.jsonl"))
+        
+        # Also check for structlog output in common locations
+        possible_logs = [
+            Path.cwd() / "logs" / "mcp-gateway.log",
+            Path.cwd() / "logs" / "app.log",
+            Path.cwd() / "mcp-gateway.log",
+        ]
+        
+        for log_file in possible_logs:
+            if log_file.exists() and str(log_file) not in log_files:
+                log_files.append(str(log_file))
+        
+        logs = []
+        
+        # Parse log files
+        for log_file in log_files:
+            try:
+                with open(log_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        
+                        log_entry = _parse_log_line(line)
+                        if log_entry:
+                            # Check if within time range
+                            if log_entry.get("timestamp"):
+                                try:
+                                    log_time = datetime.fromisoformat(
+                                        log_entry["timestamp"].replace("Z", "+00:00")
+                                    )
+                                    if log_time < cutoff:
+                                        continue
+                                except (ValueError, TypeError):
+                                    pass
+                            
+                            # Apply filters
+                            if level and log_entry.get("level", "").lower() != level.lower():
+                                continue
+                            if service and service.lower() not in log_entry.get("service", "").lower():
+                                continue
+                            if search and search.lower() not in log_entry.get("message", "").lower():
+                                continue
+                            
+                            logs.append(log_entry)
+                            
+                            if len(logs) >= limit:
+                                break
+            except Exception as e:
+                logger.debug(f"Error reading log file {log_file}: {e}")
+        
+        # Sort by timestamp (newest first)
+        logs.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        
+        return {
+            "logs": logs[:limit],
+            "total": len(logs),
+            "time_range_minutes": minutes,
+        }
+
+
+def _strip_ansi(text: str) -> str:
+    """Strip ANSI escape codes from text."""
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    return ansi_escape.sub('', text)
+
+
+def _parse_log_line(line: str) -> dict[str, Any] | None:
+    """Parse a log line into structured format.
+    
+    Handles both JSON and plain text log formats, including ANSI escape codes.
+    """
+    import json as json_module
+    
+    # Strip ANSI escape codes for parsing
+    clean_line = _strip_ansi(line)
+    
+    # Try JSON format first
+    if clean_line.startswith("{"):
+        try:
+            data = json_module.loads(clean_line)
+            return {
+                "timestamp": data.get("timestamp") or data.get("time") or data.get("@timestamp"),
+                "level": data.get("level") or data.get("severity") or "info",
+                "message": data.get("event") or data.get("message") or data.get("msg") or "",
+                "service": data.get("service") or data.get("logger") or "mcp-gateway",
+                "raw": data,
+            }
+        except json_module.JSONDecodeError:
+            pass
+    
+    # Try structured log format: timestamp [level] message (with ANSI)
+    # Pattern: ISO timestamp followed by [level] with optional ANSI codes
+    text_pattern = r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.\d]*(?:Z|[+-]\d{2}:\d{2})?)\s+(?:\x1B\[[0-;]*m)?\[?(\w+)\]?(?:\x1B\[[0-9]*m)?\s+(.*)"
+    match = re.match(text_pattern, line)
+    if match:
+        return {
+            "timestamp": match.group(1),
+            "level": match.group(2).lower(),
+            "message": _strip_ansi(match.group(3)),
+            "service": "mcp-gateway",
+            "raw": clean_line,
+        }
+    
+    # Try simple format with clean line
+    text_pattern_clean = r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.\d]*(?:Z|[+-]\d{2}:\d{2})?)\s+\[?(\w+)\]?\s+(.*)"
+    match = re.match(text_pattern_clean, clean_line)
+    if match:
+        return {
+            "timestamp": match.group(1),
+            "level": match.group(2).lower(),
+            "message": match.group(3),
+            "service": "mcp-gateway",
+            "raw": clean_line,
+        }
+    
+    # Fallback: return as-is (cleaned)
+    return {
+        "timestamp": None,
+        "level": "info",
+        "message": clean_line,
+        "service": "mcp-gateway",
+        "raw": clean_line,
+    }
