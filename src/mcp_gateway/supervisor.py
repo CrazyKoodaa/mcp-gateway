@@ -377,10 +377,10 @@ class ProcessSupervisor:
 
     def _sync_to_backend_manager(self) -> None:
         """Sync supervised backends to backend manager."""
-        # Replace backend manager's backends with supervised ones
+        # Use public API to set backends (respects encapsulation)
         for name, supervised in self._supervised.items():
             if supervised.backend:
-                self.backend_manager._backends[name] = supervised.backend
+                self.backend_manager.set_backend(name, supervised.backend)
 
 
 async def supervise_backends(

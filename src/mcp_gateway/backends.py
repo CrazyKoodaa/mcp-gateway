@@ -612,3 +612,21 @@ class BackendManager:
 
         logger.info(f"Backend {name} restarted with {len(backend.tools)} tools")
         return backend
+
+    def set_backend(self, name: str, backend: BackendConnection) -> None:
+        """Set or replace a backend in the manager.
+
+        This method allows external components (like Supervisor) to register
+        or update backends without accessing the private _backends dictionary.
+
+        Args:
+            name: The unique identifier for the backend
+            backend: The backend instance to register/update
+
+        Raises:
+            ValueError: If backend is None
+        """
+        if backend is None:
+            raise ValueError(f"Cannot set backend '{name}' to None")
+
+        self._backends[name] = backend

@@ -64,6 +64,14 @@ class TestMainAsync:
             json.dump(config, f)
         return str(config_path)
 
+    @pytest.fixture(autouse=True)
+    def mock_lockfile(self, tmp_path):
+        """Mock lockfile manager to use temporary directory."""
+        import os
+        lockfile_path = tmp_path / "mcp-gateway.lock"
+        with patch.dict(os.environ, {"MCP_GATEWAY_LOCKFILE": str(lockfile_path)}):
+            yield
+
     @pytest.mark.asyncio
     async def test_main_async_missing_config(self):
         """Test main_async with missing config file."""
