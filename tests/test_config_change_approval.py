@@ -8,12 +8,8 @@ This module covers:
 5. Security and edge cases
 """
 
-import asyncio
-import json
-import tempfile
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -25,12 +21,11 @@ from mcp_gateway.access_control import (
     get_sensitive_paths_in_config,
     is_sensitive_path,
 )
-from mcp_gateway.config import GatewayConfig, ServerConfig
-
 
 # =============================================================================
 # Unit Tests - Sensitive Path Detection
 # =============================================================================
+
 
 class TestIsSensitivePath:
     """Tests for is_sensitive_path() function."""
@@ -184,6 +179,7 @@ class TestGetSensitivePathsInConfig:
 # Unit Tests - Config Change Request/Grant Models
 # =============================================================================
 
+
 class TestConfigChangeRequest:
     """Tests for ConfigChangeRequest dataclass."""
 
@@ -191,21 +187,21 @@ class TestConfigChangeRequest:
         """Test request creation with original/target args."""
         original_config = {"args": ["/home/user"]}
         target_args = ["/home/user", "/etc"]
-        
+
         request = ConfigChangeRequest(
             id="req-123",
             code="ABCD-1234",
             server_name="filesystem",
             change_type="update",
             status=AccessRequestStatus.PENDING,
-            created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+            created_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) + timedelta(minutes=10),
             sensitive_path="/etc",
             path_index=1,
             target_args=target_args,
             original_config=original_config,
         )
-        
+
         assert request.id == "req-123"
         assert request.code == "ABCD-1234"
         assert request.server_name == "filesystem"
@@ -224,8 +220,8 @@ class TestConfigChangeRequest:
             server_name="test",
             change_type="create",
             status=AccessRequestStatus.PENDING,
-            created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+            created_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) + timedelta(minutes=10),
             sensitive_path="/etc/ssh",
             path_index=2,
             target_args=["/home/user", "/etc/ssh"],
@@ -241,18 +237,18 @@ class TestConfigChangeRequest:
             server_name="test",
             change_type="update",
             status=AccessRequestStatus.PENDING,
-            created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+            created_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) + timedelta(minutes=10),
             sensitive_path="/etc",
         )
-        
+
         # Initial status
         assert request.status == AccessRequestStatus.PENDING
-        
+
         # Approve
         request.status = AccessRequestStatus.APPROVED
         assert request.status == AccessRequestStatus.APPROVED
-        
+
         # Expire
         request.status = AccessRequestStatus.EXPIRED
         assert request.status == AccessRequestStatus.EXPIRED
@@ -265,8 +261,8 @@ class TestConfigChangeGrant:
         """Test grant creation with duration."""
         target_args = ["/home/user", "/etc"]
         original_args = ["/home/user"]
-        
-        now = datetime.now(timezone.utc)
+
+        now = datetime.now(UTC)
         grant = ConfigChangeGrant(
             id="grant-123",
             request_id="req-123",
@@ -280,7 +276,7 @@ class TestConfigChangeGrant:
             target_args=target_args,
             original_args=original_args,
         )
-        
+
         assert grant.id == "grant-123"
         assert grant.request_id == "req-123"
         assert grant.server_name == "filesystem"
@@ -293,8 +289,8 @@ class TestConfigChangeGrant:
         """Test original args are preserved for revert."""
         original = ["/home/user"]
         target = ["/home/user", "/etc"]
-        
-        now = datetime.now(timezone.utc)
+
+        now = datetime.now(UTC)
         grant = ConfigChangeGrant(
             id="grant-456",
             request_id="req-456",
@@ -308,15 +304,15 @@ class TestConfigChangeGrant:
             target_args=target,
             original_args=original,
         )
-        
+
         # Original args should be preserved exactly
         assert grant.original_args == original
         assert "/etc" not in grant.original_args
 
     def test_expiration_tracking(self):
         """Test expiration tracking via expires_at field."""
-        now = datetime.now(timezone.utc)
-        
+        now = datetime.now(UTC)
+
         grant = ConfigChangeGrant(
             id="grant-789",
             request_id="req-789",
@@ -327,15 +323,15 @@ class TestConfigChangeGrant:
             approved_by="cli",
             sensitive_path="/sys",
         )
-        
+
         assert grant.granted_at == now
         assert grant.expires_at == now + timedelta(minutes=10)
         # Check not expired
-        assert grant.expires_at > datetime.now(timezone.utc)
+        assert grant.expires_at > datetime.now(UTC)
 
     def test_is_expired_via_expires_at(self):
         """Test expiration check via expires_at comparison."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # Past expiration
         grant = ConfigChangeGrant(
             id="grant-expired",
@@ -347,12 +343,13 @@ class TestConfigChangeGrant:
             approved_by="cli",
             sensitive_path="/etc",
         )
-        assert grant.expires_at < datetime.now(timezone.utc)
+        assert grant.expires_at < datetime.now(UTC)
 
 
 # =============================================================================
 # Integration Tests - Access Control Manager
 # =============================================================================
+
 
 @pytest.fixture
 def manager():
@@ -376,7 +373,7 @@ class TestApproveConfigChange:
             code="INVALID",
             duration_minutes=5,
         )
-        
+
         assert success is False
         assert "invalid" in message.lower() or "not found" in message.lower()
         assert grant is None
@@ -389,7 +386,7 @@ class TestDenyConfigChange:
     async def test_deny_invalid_code(self, manager):
         """Deny with invalid code should fail gracefully."""
         success, message = await manager.deny_config_change(code="INVALID")
-        
+
         assert success is False
 
 
@@ -401,7 +398,7 @@ class TestCleanupExpired:
         """Expired requests marked as EXPIRED."""
         # Create expired regular access request (not config change)
         from mcp_gateway.access_control import AccessRequest
-        
+
         request = AccessRequest(
             id="req-old",
             code="EXP-REQ",
@@ -409,14 +406,14 @@ class TestCleanupExpired:
             tool_name="read_file",
             path="/etc/passwd",
             status=AccessRequestStatus.PENDING,
-            created_at=datetime.now(timezone.utc) - timedelta(minutes=20),
-            expires_at=datetime.now(timezone.utc) - timedelta(minutes=10),
+            created_at=datetime.now(UTC) - timedelta(minutes=20),
+            expires_at=datetime.now(UTC) - timedelta(minutes=10),
         )
         manager._pending_requests["EXP-REQ"] = request
-        
+
         # Run cleanup
         await manager._cleanup_expired()
-        
+
         # Request should be marked expired
         assert request.status == AccessRequestStatus.EXPIRED
 
@@ -425,8 +422,8 @@ class TestCleanupExpired:
         """Expired grants trigger config revert callback."""
         callback_mock = AsyncMock()
         manager.set_config_revert_callback(callback_mock)
-        
-        now = datetime.now(timezone.utc)
+
+        now = datetime.now(UTC)
         # Create expired grant
         grant = ConfigChangeGrant(
             id="expired-grant",
@@ -442,17 +439,17 @@ class TestCleanupExpired:
             original_args=["/home/user"],
         )
         manager._config_grants["expired-grant"] = grant
-        
+
         # Run cleanup
         await manager._cleanup_expired()
-        
+
         # Revert callback should be called
         callback_mock.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_cleanup_removes_expired_entries(self, manager):
         """Cleanup removes expired entries."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # Create expired grant
         grant = ConfigChangeGrant(
             id="old-grant",
@@ -468,10 +465,10 @@ class TestCleanupExpired:
             original_args=[],
         )
         manager._config_grants["old-grant"] = grant
-        
+
         # Run cleanup
         await manager._cleanup_expired()
-        
+
         # Grant should be removed
         assert "old-grant" not in manager._config_grants
 
@@ -481,7 +478,7 @@ class TestGetPendingConfigChanges:
 
     def test_returns_only_pending_requests(self, manager):
         """Returns only non-expired pending requests."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # Create pending request
         pending = ConfigChangeRequest(
             id="req-pending",
@@ -494,7 +491,7 @@ class TestGetPendingConfigChanges:
             sensitive_path="/etc",
         )
         manager._pending_config_changes["PENDING"] = pending
-        
+
         # Create expired request
         expired = ConfigChangeRequest(
             id="req-expired",
@@ -507,9 +504,9 @@ class TestGetPendingConfigChanges:
             sensitive_path="/sys",
         )
         manager._pending_config_changes["EXPIRED"] = expired
-        
+
         result = manager.get_pending_config_changes()
-        
+
         # Should only return non-expired pending
         codes = [r.code for r in result]
         assert "PENDING" in codes
@@ -521,7 +518,7 @@ class TestGetActiveConfigGrants:
 
     def test_returns_only_active_grants(self, manager):
         """Returns only non-expired grants."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # Create active grant
         active = ConfigChangeGrant(
             id="active-grant",
@@ -534,7 +531,7 @@ class TestGetActiveConfigGrants:
             sensitive_path="/etc",
         )
         manager._config_grants["active-grant"] = active
-        
+
         # Create expired grant
         expired = ConfigChangeGrant(
             id="expired-grant",
@@ -547,9 +544,9 @@ class TestGetActiveConfigGrants:
             sensitive_path="/sys",
         )
         manager._config_grants["expired-grant"] = expired
-        
+
         result = manager.get_active_config_grants()
-        
+
         # Should only return non-expired
         ids = [g.id for g in result]
         assert "active-grant" in ids
@@ -563,7 +560,7 @@ class TestRevertConfigChange:
     async def test_manual_revert_not_found(self, manager):
         """Revert with non-existent grant should return failure."""
         success, message = await manager.revert_config_change("non-existent-grant")
-        
+
         assert success is False
         assert "not found" in message.lower()
 
@@ -573,9 +570,9 @@ class TestRevertConfigChange:
         # Note: This test is limited due to implementation bug (references original_config instead of original_args)
         # Create a mock to avoid the callback error
         manager._config_revert_callback = None
-        
-        now = datetime.now(timezone.utc)
-        
+
+        now = datetime.now(UTC)
+
         grant = ConfigChangeGrant(
             id="grant-to-revoke",
             request_id="req-revoke",
@@ -590,10 +587,10 @@ class TestRevertConfigChange:
             original_args=["/home/user"],
         )
         manager._config_grants["grant-to-revoke"] = grant
-        
+
         # Revert the grant (will fail due to implementation bug, but grant should still be removed)
         success, message = await manager.revert_config_change("grant-to-revoke")
-        
+
         # Grant should be removed even if callback fails
         assert "grant-to-revoke" not in manager._config_grants
 
@@ -601,6 +598,7 @@ class TestRevertConfigChange:
 # =============================================================================
 # Security Tests
 # =============================================================================
+
 
 class TestSecurityScenarios:
     """Security scenario tests."""
@@ -622,6 +620,7 @@ class TestSecurityScenarios:
 # =============================================================================
 # Edge Cases
 # =============================================================================
+
 
 class TestEdgeCases:
     """Edge case tests."""
@@ -670,6 +669,7 @@ class TestEdgeCases:
 # =============================================================================
 # Status Enum Tests
 # =============================================================================
+
 
 class TestAccessRequestStatus:
     """Tests for AccessRequestStatus enum."""

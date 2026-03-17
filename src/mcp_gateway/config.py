@@ -41,46 +41,30 @@ class ServerConfig(BaseModel):
     name: str = Field(description="Unique name for this server")
 
     # For stdio servers
-    command: str | None = Field(
-        default=None,
-        description="Command to execute for stdio servers"
-    )
-    args: list[str] = Field(
-        default_factory=list,
-        description="Arguments for the command"
-    )
+    command: str | None = Field(default=None, description="Command to execute for stdio servers")
+    args: list[str] = Field(default_factory=list, description="Arguments for the command")
     env: dict[str, str] = Field(
-        default_factory=dict,
-        description="Environment variables for the server"
+        default_factory=dict, description="Environment variables for the server"
     )
 
     # For remote servers
-    url: str | None = Field(
-        default=None,
-        description="URL for remote MCP servers"
-    )
+    url: str | None = Field(default=None, description="URL for remote MCP servers")
     type: Literal["stdio", "sse", "streamable-http", "streamablehttp"] | None = Field(
-        default=None,
-        description="Transport type for remote servers"
+        default=None, description="Transport type for remote servers"
     )
 
     # Headers for remote connections
     headers: dict[str, str] = Field(
-        default_factory=dict,
-        description="HTTP headers for remote connections"
+        default_factory=dict, description="HTTP headers for remote connections"
     )
 
     # Tool filtering
     disabled_tools: list[str] = Field(
-        default_factory=list,
-        description="List of tool names to disable"
+        default_factory=list, description="List of tool names to disable"
     )
 
     # Server enable/disable
-    enabled: bool = Field(
-        default=True,
-        description="Whether this server is enabled"
-    )
+    enabled: bool = Field(default=True, description="Whether this server is enabled")
 
     @field_validator("args", mode="before")
     @classmethod
@@ -200,16 +184,14 @@ class GatewaySettings(BaseModel):
     bearer_token: str | None = Field(default=None, description="Bearer token for authentication")
     auth_exclude_paths: list[str] = Field(
         default_factory=lambda: ["/health", "/metrics", "/docs", "/openapi.json"],
-        description="Paths excluded from authentication"
+        description="Paths excluded from authentication",
     )
 
     # Timeouts
     connection_timeout: float = Field(
         default=30.0, ge=0, description="Connection timeout in seconds"
     )
-    request_timeout: float = Field(
-        default=60.0, ge=0, description="Request timeout in seconds"
-    )
+    request_timeout: float = Field(default=60.0, ge=0, description="Request timeout in seconds")
 
     # Admin panel
     admin_username: str = Field(default="admin", description="Admin panel username")
@@ -224,8 +206,7 @@ class GatewaySettings(BaseModel):
         default=30.0, ge=0, description="Seconds before attempting recovery"
     )
     circuit_breaker_expected_exception: str = Field(
-        default="Exception",
-        description="Exception type that triggers circuit breaker"
+        default="Exception", description="Exception type that triggers circuit breaker"
     )
 
     # Structured logging
@@ -259,13 +240,10 @@ class GatewayConfig(BaseModel):
     """
 
     gateway: GatewaySettings = Field(
-        default_factory=GatewaySettings,
-        description="Gateway-wide settings"
+        default_factory=GatewaySettings, description="Gateway-wide settings"
     )
     mcp_servers: dict[str, ServerConfig] = Field(
-        default_factory=dict,
-        description="MCP server configurations",
-        alias="servers"
+        default_factory=dict, description="MCP server configurations", alias="servers"
     )
 
     model_config = {"extra": "forbid", "populate_by_name": True}  # Reject unknown fields
@@ -278,12 +256,23 @@ class GatewayConfig(BaseModel):
         """
         # Extract gateway-specific fields for forwarding
         gateway_fields = {
-            'host', 'port', 'log_level', 'enable_namespacing', 'namespace_separator',
-            'api_key', 'bearer_token', 'auth_exclude_paths', 'connection_timeout',
-            'request_timeout', 'admin_username', 'admin_password',
-            'circuit_breaker_enabled', 'circuit_breaker_failure_threshold',
-            'circuit_breaker_recovery_timeout', 'circuit_breaker_expected_exception',
-            'structured_logging'
+            "host",
+            "port",
+            "log_level",
+            "enable_namespacing",
+            "namespace_separator",
+            "api_key",
+            "bearer_token",
+            "auth_exclude_paths",
+            "connection_timeout",
+            "request_timeout",
+            "admin_username",
+            "admin_password",
+            "circuit_breaker_enabled",
+            "circuit_breaker_failure_threshold",
+            "circuit_breaker_recovery_timeout",
+            "circuit_breaker_expected_exception",
+            "structured_logging",
         }
 
         # Separate gateway fields from other data
@@ -297,22 +286,22 @@ class GatewayConfig(BaseModel):
                 other_data[key] = value
 
         # If gateway object was provided, merge with overrides
-        if 'gateway' in other_data:
-            existing_gateway = other_data['gateway']
+        if "gateway" in other_data:
+            existing_gateway = other_data["gateway"]
             if isinstance(existing_gateway, dict):
                 # Merge overrides with existing gateway dict
                 merged_gateway = {**existing_gateway, **gateway_overrides}
-                other_data['gateway'] = merged_gateway
+                other_data["gateway"] = merged_gateway
             elif isinstance(existing_gateway, GatewaySettings):
                 # Can't easily merge with existing GatewaySettings object
                 # Just use overrides if provided, otherwise keep existing
                 if gateway_overrides:
-                    other_data['gateway'] = GatewaySettings(
+                    other_data["gateway"] = GatewaySettings(
                         **{**existing_gateway.model_dump(), **gateway_overrides}
                     )
         elif gateway_overrides:
             # Create new gateway settings with overrides
-            other_data['gateway'] = GatewaySettings(**gateway_overrides)
+            other_data["gateway"] = GatewaySettings(**gateway_overrides)
 
         super().__init__(**other_data)
 
@@ -484,7 +473,7 @@ def load_config(path: str | Path) -> GatewayConfig:
                 server_copy["disabled_tools"] = server_copy.pop("disabledTools")
             if "disabled_tools" not in server_copy:
                 server_copy["disabled_tools"] = []
-            
+
             # Handle enabled field (default to True if not specified)
             if "enabled" not in server_copy:
                 server_copy["enabled"] = True
@@ -516,10 +505,7 @@ def save_config(config: GatewayConfig, path: str | Path) -> None:
     data = config.model_dump(by_alias=False)
 
     # Convert back to legacy format for backward compatibility
-    output: dict[str, Any] = {
-        "gateway": {},
-        "mcpServers": {}
-    }
+    output: dict[str, Any] = {"gateway": {}, "mcpServers": {}}
 
     # Gateway settings with camelCase keys
     gw = data["gateway"]

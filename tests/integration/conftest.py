@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -22,19 +21,16 @@ def temp_config_file(tmp_path):
             "port": 3000,
             "logLevel": "INFO",
             "enableNamespacing": True,
-            "namespaceSeparator": "__"
+            "namespaceSeparator": "__",
         },
         "mcpServers": {
-            "memory": {
-                "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-memory"]
-            },
+            "memory": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"]},
             "time": {
                 "command": "uvx",
                 "args": ["mcp-server-time"],
-                "disabledTools": ["convert_time"]
-            }
-        }
+                "disabledTools": ["convert_time"],
+            },
+        },
     }
     config_path = tmp_path / "config.json"
     with open(config_path, "w") as f:
@@ -58,16 +54,16 @@ def test_app(temp_config_file, mock_backend_manager):
     """Create a test FastAPI app with mocked dependencies."""
     config = load_config(temp_config_file)
     config_manager = ConfigManager(temp_config_file, config)
-    
+
     deps = ServerDependencies(
         config=config,
         backend_manager=mock_backend_manager,
         config_manager=config_manager,
     )
-    
+
     server = McpGatewayServer(dependencies=deps)
     app = server.create_app(enable_access_control=False)
-    
+
     return app, config_manager, mock_backend_manager, temp_config_file
 
 
@@ -75,5 +71,6 @@ def test_app(temp_config_file, mock_backend_manager):
 def client(test_app):
     """Create a test client."""
     from fastapi.testclient import TestClient
+
     app, _, _, _ = test_app
     return TestClient(app)

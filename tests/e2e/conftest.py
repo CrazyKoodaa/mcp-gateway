@@ -2,10 +2,11 @@
 E2E Test Fixtures - MCP Gateway Dashboard
 All services requiring async operations are properly mocked with AsyncMock
 """
+
 from __future__ import annotations
 
 import asyncio
-from typing import Generator
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -17,20 +18,20 @@ from mcp_gateway.server import McpGatewayServer, ServerDependencies
 
 class MockAuditService:
     """Mock audit service with async operations"""
-    
+
     def __init__(self):
         self._started = False
-    
+
     async def start(self):
         """Start audit service"""
         await asyncio.sleep(0)
         self._started = True
-    
+
     async def stop(self):
         """Stop audit service"""
         await asyncio.sleep(0)
         self._started = False
-    
+
     async def log_event(self, event_type: str, data: dict):
         """Log an audit event"""
         return True
@@ -38,20 +39,20 @@ class MockAuditService:
 
 class MockPathSecurity:
     """Mock path security service"""
-    
+
     def __init__(self):
         self._started = False
-    
+
     async def start(self):
         """Start path security service"""
         await asyncio.sleep(0)
         self._started = True
-    
+
     async def stop(self):
         """Stop path security service"""
         await asyncio.sleep(0)
         self._started = False
-    
+
     def check_path(self, path: str) -> dict:
         """Check if path is sensitive"""
         return {"path": path, "is_sensitive": False, "matched_pattern": None}
@@ -59,26 +60,26 @@ class MockPathSecurity:
 
 class MockAccessControl:
     """Mock access control service"""
-    
+
     def __init__(self):
         self._started = False
-    
+
     async def start(self):
         """Start access control service"""
         await asyncio.sleep(0)
         self._started = True
-    
+
     async def stop(self):
         """Stop access control service"""
         await asyncio.sleep(0)
         self._started = False
-    
+
     def get_pending_requests(self):
         return []
-    
+
     def get_active_grants(self):
         return []
-    
+
     def get_active_config_grants(self):
         return []
 
@@ -97,9 +98,9 @@ def gateway_config() -> GatewayConfig:
 def mock_backend_manager():
     """Create mock backend manager."""
     from mcp.types import Tool
-    
+
     manager = MagicMock()
-    
+
     # Create mock backends
     backend1 = MagicMock()
     backend1.name = "memory"
@@ -108,20 +109,20 @@ def mock_backend_manager():
         Tool(name="add", description="Add memory", inputSchema={}),
         Tool(name="get", description="Get memory", inputSchema={}),
     ]
-    
+
     backend2 = MagicMock()
     backend2.name = "time"
     backend2.is_connected = True
     backend2.tools = [
         Tool(name="get_current_time", description="Get time", inputSchema={}),
     ]
-    
+
     manager.backends = {"memory": backend1, "time": backend2}
     manager.get_all_tools.return_value = []
     manager.restart_backend = AsyncMock()
     manager.connect_all = AsyncMock()
     manager.disconnect_all = AsyncMock()
-    
+
     return manager
 
 
@@ -129,7 +130,7 @@ def mock_backend_manager():
 def mock_config_manager(tmp_path, gateway_config):
     """Create mock config manager."""
     manager = MagicMock()
-    
+
     # Set up mcp_servers (not servers which is a read-only property)
     gateway_config.mcp_servers = {
         "memory": ServerConfig(
@@ -144,7 +145,7 @@ def mock_config_manager(tmp_path, gateway_config):
             disabled_tools=["convert_time"],
         ),
     }
-    
+
     manager.gateway_config = gateway_config
     manager.reload = AsyncMock()
     manager.save = AsyncMock()
@@ -163,10 +164,12 @@ def mock_supervisor():
     supervisor.start_supervision = AsyncMock()
     supervisor.stop_supervision = AsyncMock()
     supervisor.restart_backend = AsyncMock(return_value=True)
-    supervisor.get_stats = MagicMock(return_value={
-        "memory": {"restarts": 0, "last_restart": None},
-        "time": {"restarts": 0, "last_restart": None},
-    })
+    supervisor.get_stats = MagicMock(
+        return_value={
+            "memory": {"restarts": 0, "last_restart": None},
+            "time": {"restarts": 0, "last_restart": None},
+        }
+    )
     return supervisor
 
 
@@ -205,12 +208,11 @@ def mock_config_approval():
     config_approval.start = AsyncMock()
     config_approval.stop = AsyncMock()
     config_approval.get_pending_requests = MagicMock(return_value=[])
-    config_approval.check_config_change = AsyncMock(return_value=MagicMock(
-        requires_approval=False,
-        error=None,
-        safe_paths=[],
-        pending_requests=[]
-    ))
+    config_approval.check_config_change = AsyncMock(
+        return_value=MagicMock(
+            requires_approval=False, error=None, safe_paths=[], pending_requests=[]
+        )
+    )
     config_approval.approve = AsyncMock(return_value=(True, "Approved", None))
     return config_approval
 
@@ -231,11 +233,11 @@ def test_client(
     """Create FastAPI test client with mocked dependencies."""
     from mcp_gateway.circuit_breaker import CircuitBreakerRegistry
     from mcp_gateway.metrics import MetricsCollector
-    
+
     # Create template directory with test templates
     template_dir = tmp_path / "templates"
     template_dir.mkdir()
-    
+
     templates_content = {
         "dashboard.html": """<!DOCTYPE html>
 <html>
@@ -280,14 +282,15 @@ def test_client(
 </body>
 </html>""",
     }
-    
+
     for name, content in templates_content.items():
         (template_dir / name).write_text(content)
-    
+
     # Create Jinja2 templates
     from fastapi.templating import Jinja2Templates
+
     templates = Jinja2Templates(directory=str(template_dir))
-    
+
     # Create dependencies with proper async services
     deps = ServerDependencies(
         config=gateway_config,
@@ -304,11 +307,11 @@ def test_client(
         auth=None,
         templates=templates,
     )
-    
+
     # Create server and app
     server = McpGatewayServer(dependencies=deps)
     app = server.create_app(enable_access_control=False)
-    
+
     with TestClient(app) as client:
         yield client
 

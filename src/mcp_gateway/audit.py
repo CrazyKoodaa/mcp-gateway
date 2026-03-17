@@ -25,13 +25,13 @@ class FileAuditHandler:
     def __init__(self, log_path: Path):
         self.log_path = log_path
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Create file handler
-        self._handler = logging.FileHandler(log_path, mode='a')
+        self._handler = logging.FileHandler(log_path, mode="a")
         self._handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(message)s')
+        formatter = logging.Formatter("%(message)s")
         self._handler.setFormatter(formatter)
-        
+
         # Logger for this handler
         self._logger = logging.getLogger(f"mcp_gateway.audit.file.{log_path.stem}")
         self._logger.addHandler(self._handler)
@@ -40,12 +40,13 @@ class FileAuditHandler:
 
     def handle(self, event_data: dict[str, Any]) -> None:
         """Write audit event to file."""
-        self._logger.info(json.dumps(event_data, separators=(',', ':')))
+        self._logger.info(json.dumps(event_data, separators=(",", ":")))
 
     def close(self) -> None:
         """Close the handler."""
         self._handler.close()
         self._logger.removeHandler(self._handler)
+
 
 # Audit logger - separate from application logs
 audit_logger = logging.getLogger("mcp_gateway.audit")
@@ -86,21 +87,24 @@ def init_audit_logging(log_dir: Path | None = None) -> None:
     audit_file = log_dir / "audit.log"
 
     # Create file handler with append mode
-    handler = logging.FileHandler(audit_file, mode='a')
+    handler = logging.FileHandler(audit_file, mode="a")
     handler.setLevel(logging.INFO)
 
     # Simple formatter - just the JSON message
-    formatter = logging.Formatter('%(message)s')
+    formatter = logging.Formatter("%(message)s")
     handler.setFormatter(formatter)
 
     audit_logger.addHandler(handler)
     audit_logger.setLevel(logging.INFO)
 
     # Log initialization
-    log_event(AuditEvent.SERVER_STARTED, {
-        "message": "Audit logging initialized",
-        "log_file": str(audit_file),
-    })
+    log_event(
+        AuditEvent.SERVER_STARTED,
+        {
+            "message": "Audit logging initialized",
+            "log_file": str(audit_file),
+        },
+    )
 
 
 def compute_chain_hash(event_data: dict) -> str:
@@ -117,7 +121,7 @@ def compute_chain_hash(event_data: dict) -> str:
     """
     # In a production system, this would read the last event's hash
     # For simplicity, we just hash the current event with a timestamp
-    data_str = json.dumps(event_data, sort_keys=True, separators=(',', ':'))
+    data_str = json.dumps(event_data, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(data_str.encode()).hexdigest()[:32]
 
 
@@ -151,10 +155,11 @@ def log_event(
     event["chain_hash"] = compute_chain_hash(event)
 
     # Log as JSON
-    audit_logger.info(json.dumps(event, separators=(',', ':')))
+    audit_logger.info(json.dumps(event, separators=(",", ":")))
 
 
 # Convenience functions for common events
+
 
 def log_config_change_requested(
     server_name: str,
@@ -163,11 +168,15 @@ def log_config_change_requested(
     actor: str = "web",
 ) -> None:
     """Log a config change request."""
-    log_event(AuditEvent.CONFIG_CHANGE_REQUESTED, {
-        "server_name": server_name,
-        "sensitive_path": sensitive_path,
-        "approval_code": approval_code,
-    }, actor=actor)
+    log_event(
+        AuditEvent.CONFIG_CHANGE_REQUESTED,
+        {
+            "server_name": server_name,
+            "sensitive_path": sensitive_path,
+            "approval_code": approval_code,
+        },
+        actor=actor,
+    )
 
 
 def log_config_change_approved(
@@ -179,13 +188,17 @@ def log_config_change_approved(
     actor: str = "cli",
 ) -> None:
     """Log a config change approval."""
-    log_event(AuditEvent.CONFIG_CHANGE_APPROVED, {
-        "server_name": server_name,
-        "sensitive_path": sensitive_path,
-        "approval_code": approval_code,
-        "grant_id": grant_id,
-        "duration_minutes": duration_minutes,
-    }, actor=actor)
+    log_event(
+        AuditEvent.CONFIG_CHANGE_APPROVED,
+        {
+            "server_name": server_name,
+            "sensitive_path": sensitive_path,
+            "approval_code": approval_code,
+            "grant_id": grant_id,
+            "duration_minutes": duration_minutes,
+        },
+        actor=actor,
+    )
 
 
 def log_config_change_reverted(
@@ -195,12 +208,16 @@ def log_config_change_reverted(
     reason: str = "expired",
 ) -> None:
     """Log a config change reversion."""
-    log_event(AuditEvent.CONFIG_CHANGE_REVERTED, {
-        "server_name": server_name,
-        "sensitive_path": sensitive_path,
-        "grant_id": grant_id,
-        "reason": reason,
-    }, actor="system")
+    log_event(
+        AuditEvent.CONFIG_CHANGE_REVERTED,
+        {
+            "server_name": server_name,
+            "sensitive_path": sensitive_path,
+            "grant_id": grant_id,
+            "reason": reason,
+        },
+        actor="system",
+    )
 
 
 def log_access_requested(
@@ -210,12 +227,16 @@ def log_access_requested(
     approval_code: str,
 ) -> None:
     """Log an access request."""
-    log_event(AuditEvent.ACCESS_REQUESTED, {
-        "mcp_name": mcp_name,
-        "tool_name": tool_name,
-        "path": path,
-        "approval_code": approval_code,
-    }, actor="system")
+    log_event(
+        AuditEvent.ACCESS_REQUESTED,
+        {
+            "mcp_name": mcp_name,
+            "tool_name": tool_name,
+            "path": path,
+            "approval_code": approval_code,
+        },
+        actor="system",
+    )
 
 
 def log_access_approved(
@@ -227,10 +248,14 @@ def log_access_approved(
     actor: str = "cli",
 ) -> None:
     """Log an access approval."""
-    log_event(AuditEvent.ACCESS_APPROVED, {
-        "mcp_name": mcp_name,
-        "path": path,
-        "approval_code": approval_code,
-        "grant_id": grant_id,
-        "duration_minutes": duration_minutes,
-    }, actor=actor)
+    log_event(
+        AuditEvent.ACCESS_APPROVED,
+        {
+            "mcp_name": mcp_name,
+            "path": path,
+            "approval_code": approval_code,
+            "grant_id": grant_id,
+            "duration_minutes": duration_minutes,
+        },
+        actor=actor,
+    )

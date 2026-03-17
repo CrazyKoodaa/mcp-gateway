@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import structlog
@@ -17,9 +17,7 @@ from structlog.stdlib import filter_by_level
 
 
 def setup_structured_logging(
-    log_level: str = "INFO",
-    json_format: bool = True,
-    service_name: str = "mcp-gateway"
+    log_level: str = "INFO", json_format: bool = True, service_name: str = "mcp-gateway"
 ) -> None:
     """Configure structured logging for the application.
 
@@ -45,7 +43,8 @@ def setup_structured_logging(
     if json_format:
         # JSON formatting for production
         structlog.configure(
-            processors=shared_processors + [
+            processors=shared_processors
+            + [
                 structlog.processors.format_exc_info,
                 structlog.processors.UnicodeDecoder(),
                 structlog.processors.ExceptionPrettyPrinter(),
@@ -59,7 +58,8 @@ def setup_structured_logging(
     else:
         # Console formatting for development
         structlog.configure(
-            processors=shared_processors + [
+            processors=shared_processors
+            + [
                 structlog.dev.ConsoleRenderer(colors=True),
             ],
             wrapper_class=structlog.stdlib.BoundLogger,
@@ -141,7 +141,7 @@ def log_request(
     path: str,
     status_code: int,
     duration_ms: float,
-    **extra: Any
+    **extra: Any,
 ) -> None:
     """Log an HTTP request with standard fields.
 
@@ -159,7 +159,7 @@ def log_request(
         "http_path": path,
         "http_status_code": status_code,
         "duration_ms": round(duration_ms, 2),
-        **extra
+        **extra,
     }
 
     if status_code >= 500:
@@ -177,7 +177,7 @@ def log_backend_call(
     duration_ms: float,
     success: bool,
     error: str | None = None,
-    **extra: Any
+    **extra: Any,
 ) -> None:
     """Log a backend tool call.
 
@@ -196,7 +196,7 @@ def log_backend_call(
         "tool_name": tool_name,
         "duration_ms": round(duration_ms, 2),
         "success": success,
-        **extra
+        **extra,
     }
 
     if error:

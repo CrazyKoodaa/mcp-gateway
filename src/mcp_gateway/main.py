@@ -10,30 +10,30 @@ warnings.filterwarnings("ignore", message=".*coroutine.*was never awaited.*")
 warnings.filterwarnings("ignore", message=".*async generator.*")
 warnings.filterwarnings("ignore", message=".*unclosed.*")
 
-import argparse
-import asyncio
-import signal
-import sys
-from pathlib import Path
-from typing import Any
+import argparse  # noqa: E402
+import asyncio  # noqa: E402
+import signal  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from typing import Any  # noqa: E402
 
-from fastapi.templating import Jinja2Templates
+from fastapi.templating import Jinja2Templates  # noqa: E402
 
-from .admin import ConfigManager
-from .auth import AuthConfig, AuthMiddleware
-from .backends import BackendManager
-from .circuit_breaker import CircuitBreakerRegistry
-from .config import GatewayConfig, load_config
-from .hot_reload import HotReloadManager
-from .lockfile import LockfileManager, format_lock_error, format_port_error
+from .access_control import AccessControlManager  # noqa: E402
+from .admin import ConfigManager  # noqa: E402
+from .auth import AuthConfig, AuthMiddleware  # noqa: E402
+from .backends import BackendManager  # noqa: E402
+from .circuit_breaker import CircuitBreakerRegistry  # noqa: E402
+from .config import GatewayConfig, load_config  # noqa: E402
+from .hot_reload import HotReloadManager  # noqa: E402
+from .lockfile import LockfileManager, format_lock_error, format_port_error  # noqa: E402
 
 # Get structured logger
-from .logging_config import get_logger, setup_structured_logging
-from .metrics import MetricsCollector
-from .server import McpGatewayServer, ServerDependencies
-from .access_control import AccessControlManager
-from .services import AuditService, ConfigApprovalService, PathSecurityService
-from .supervisor import ProcessSupervisor, SupervisionConfig
+from .logging_config import get_logger, setup_structured_logging  # noqa: E402
+from .metrics import MetricsCollector  # noqa: E402
+from .server import McpGatewayServer, ServerDependencies  # noqa: E402
+from .services import AuditService, ConfigApprovalService, PathSecurityService  # noqa: E402
+from .supervisor import ProcessSupervisor, SupervisionConfig  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -51,11 +51,9 @@ def setup_logging(log_level: str = "INFO") -> None:
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
     """
     import logging
+
     level = getattr(logging, log_level.upper(), logging.INFO)
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
 def parse_args() -> argparse.Namespace:
@@ -64,18 +62,21 @@ def parse_args() -> argparse.Namespace:
         description="MCP Gateway - Aggregate multiple MCP servers into one endpoint"
     )
     parser.add_argument(
-        "--config", "-c",
+        "--config",
+        "-c",
         type=str,
         default="config.json",
         help="Path to configuration file (default: config.json)",
     )
     parser.add_argument(
-        "--host", "-H",
+        "--host",
+        "-H",
         type=str,
         help="Host to bind to (overrides config)",
     )
     parser.add_argument(
-        "--port", "-p",
+        "--port",
+        "-p",
         type=int,
         help="Port to listen on (overrides config)",
     )
@@ -142,8 +143,7 @@ async def create_dependencies(
 
     # Filter out disabled servers
     enabled_servers = {
-        name: srv for name, srv in config.servers.items() 
-        if srv.enabled is not False
+        name: srv for name, srv in config.servers.items() if srv.enabled is not False
     }
     disabled_count = len(config.servers) - len(enabled_servers)
     if disabled_count > 0:
@@ -159,7 +159,7 @@ async def create_dependencies(
     if not backend_manager.backends:
         logger.warning(
             "No backends connected. Gateway will start anyway.",
-            help="Use admin dashboard or CLI to diagnose connection issues"
+            help="Use admin dashboard or CLI to diagnose connection issues",
         )
 
     # Setup process supervision
@@ -177,6 +177,7 @@ async def create_dependencies(
     audit_handlers = []
     if enable_audit_logging:
         from .audit import FileAuditHandler
+
         audit_log_path = Path.cwd() / "logs" / "audit.log"
         audit_log_path.parent.mkdir(parents=True, exist_ok=True)
         audit_handlers.append(FileAuditHandler(audit_log_path))
@@ -254,7 +255,7 @@ async def main_async() -> int:
     # Acquire lockfile to prevent multiple instances
     lockfile = LockfileManager()
     acquired, existing_pid = lockfile.acquire()
-    
+
     if not acquired:
         # Another instance is running
         print(format_lock_error(config.port, existing_pid, lockfile.lock_path), file=sys.stderr)
@@ -262,9 +263,7 @@ async def main_async() -> int:
 
     # Setup logging (after lock acquired to avoid log conflicts)
     setup_structured_logging(
-        log_level=config.log_level,
-        json_format=not args.console_log,
-        service_name="mcp-gateway"
+        log_level=config.log_level, json_format=not args.console_log, service_name="mcp-gateway"
     )
 
     logger.info(
@@ -289,6 +288,7 @@ async def main_async() -> int:
     # backend restarts when config changes are approved. Using both can cause backends
     # to be restarted twice, leading to errors.
     if args.hot_reload:
+
         async def reload_callback_impl(new_config: GatewayConfig) -> None:
             """Callback for config reload."""
             logger.info("Applying hot reload...")
@@ -319,8 +319,7 @@ async def main_async() -> int:
 
             # Filter out disabled servers
             enabled_servers = {
-                name: srv for name, srv in new_config.servers.items()
-                if srv.enabled is not False
+                name: srv for name, srv in new_config.servers.items() if srv.enabled is not False
             }
             disabled_count = len(new_config.servers) - len(enabled_servers)
             if disabled_count > 0:
@@ -366,20 +365,21 @@ async def main_async() -> int:
     def signal_handler(sig: int, frame: Any) -> None:
         nonlocal shutdown_requested, shutdown_start_time
         import signal as sig_module
+
         signal_name = sig_module.Signals(sig).name
-        
+
         if shutdown_requested:
             # Second signal - force immediate exit
             logger.warning(f"Second {signal_name} received, forcing immediate exit")
             _suppress_shutdown_errors()
             sys.exit(130)
-        
+
         # First signal - initiate graceful shutdown
         shutdown_requested = True
         shutdown_start_time = asyncio.get_event_loop().time()
         logger.info(
             f"{signal_name} received, initiating graceful shutdown",
-            force_after=f"{FORCE_SHUTDOWN_AFTER}s (press Ctrl+C again to force)"
+            force_after=f"{FORCE_SHUTDOWN_AFTER}s (press Ctrl+C again to force)",
         )
         shutdown_event.set()
 
@@ -446,7 +446,7 @@ async def main_async() -> int:
                 logger.warning(f"Graceful shutdown timed out after {elapsed:.1f}s, forcing exit")
                 _suppress_shutdown_errors()
                 sys.exit(130)
-        
+
         # Cleanup with timeout wrapper
         async def cleanup_with_timeout():
             """Run cleanup with a timeout to prevent hanging."""
@@ -454,7 +454,7 @@ async def main_async() -> int:
                 if hot_reload:
                     logger.info("Stopping hot reload...")
                     await asyncio.wait_for(hot_reload.stop(), timeout=3.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Hot reload stop timed out")
             except Exception:
                 pass
@@ -463,7 +463,7 @@ async def main_async() -> int:
                 if deps.supervisor:
                     logger.info("Stopping process supervision...")
                     await asyncio.wait_for(deps.supervisor.stop_supervision(), timeout=3.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Supervisor stop timed out")
             except Exception:
                 pass
@@ -478,23 +478,23 @@ async def main_async() -> int:
             try:
                 logger.info("Disconnecting from backends...")
                 await asyncio.wait_for(deps.backend_manager.disconnect_all(), timeout=3.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Backend disconnect timed out")
             except asyncio.CancelledError:
                 logger.debug("Backend disconnect cancelled")
             except Exception:
                 pass
-        
+
         # Run cleanup with overall timeout
         try:
             await asyncio.wait_for(cleanup_with_timeout(), timeout=FORCE_SHUTDOWN_AFTER)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(f"Overall cleanup timed out after {FORCE_SHUTDOWN_AFTER}s")
         except Exception as e:
             logger.error(f"Cleanup error: {e}")
 
         logger.info("Goodbye!")
-        
+
         # Release lockfile
         try:
             lockfile.release()
@@ -511,12 +511,14 @@ def _suppress_shutdown_errors():
     and are not indicative of actual problems.
     """
     import logging
+
     # Suppress loggers that print errors during shutdown
     for name in ["asyncio", "anyio", "mcp", "trio", "anyio._backends._asyncio"]:
         logging.getLogger(name).setLevel(logging.CRITICAL)
 
     # Suppress warnings about unclosed async generators
     import warnings
+
     warnings.filterwarnings("ignore", category=RuntimeWarning)
     warnings.filterwarnings("ignore", message=".*async generator.*")
     warnings.filterwarnings("ignore", message=".*unclosed.*")
@@ -528,6 +530,7 @@ def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] in ("approve", "list"):
         # Delegate to CLI module
         from .cli import main as cli_main
+
         cli_main()
         return 0
 
@@ -543,7 +546,12 @@ def main() -> int:
             # Suppress any error containing specific keywords
             if exc_value:
                 msg = str(exc_value).lower()
-                suppress_keywords = ["cancel scope", "different task", "async generator", "stdio_client"]
+                suppress_keywords = [
+                    "cancel scope",
+                    "different task",
+                    "async generator",
+                    "stdio_client",
+                ]
                 if any(kw in msg for kw in suppress_keywords):
                     return
             # Check for BaseExceptionGroup (Python 3.11+)
@@ -572,6 +580,7 @@ def main() -> int:
         _suppress_shutdown_errors()
         # Small delay to allow async generators to close
         import time
+
         time.sleep(0.1)
         sys.excepthook = original_excepthook
 

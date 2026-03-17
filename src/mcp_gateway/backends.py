@@ -31,9 +31,18 @@ class BackendConnection:
     """Manages connection to a single MCP backend server."""
 
     __slots__ = (
-        "config", "session", "_exit_stack", "_tools", "_connected",
-        "_connection_timeout", "_request_timeout", "_circuit_breaker",
-        "_last_error", "_diagnostic_tip", "_connection_attempts", "_last_connection_attempt"
+        "config",
+        "session",
+        "_exit_stack",
+        "_tools",
+        "_connected",
+        "_connection_timeout",
+        "_request_timeout",
+        "_circuit_breaker",
+        "_last_error",
+        "_diagnostic_tip",
+        "_connection_attempts",
+        "_last_connection_attempt",
     )
 
     def __init__(
@@ -41,7 +50,7 @@ class BackendConnection:
         config: ServerConfig,
         connection_timeout: float = DEFAULT_CONNECTION_TIMEOUT,
         request_timeout: float = DEFAULT_REQUEST_TIMEOUT,
-        circuit_breaker: CircuitBreaker | None = None
+        circuit_breaker: CircuitBreaker | None = None,
     ) -> None:
         self.config: ServerConfig = config
         self.session: ClientSession | None = None
@@ -51,7 +60,7 @@ class BackendConnection:
         self._connection_timeout: float = connection_timeout
         self._request_timeout: float = request_timeout
         self._circuit_breaker: CircuitBreaker | None = circuit_breaker
-        
+
         # Diagnostic tracking
         self._last_error: str | None = None
         self._diagnostic_tip: str | None = None
@@ -72,74 +81,74 @@ class BackendConnection:
     def tools(self) -> list[Tool]:
         """Copy of available tools."""
         return self._tools.copy()
-    
+
     @property
     def last_error(self) -> str | None:
         """Last connection error message."""
         return self._last_error
-    
+
     @property
     def diagnostic_tip(self) -> str | None:
         """Diagnostic tip for fixing connection issues."""
         return self._diagnostic_tip
-    
+
     @property
     def connection_attempts(self) -> int:
         """Number of connection attempts made."""
         return self._connection_attempts
-    
+
     @property
     def last_connection_attempt(self) -> float | None:
         """Timestamp of last connection attempt."""
         return self._last_connection_attempt
-    
+
     def _generate_diagnostic_tip(self, error: Exception) -> str:
         """Generate a helpful diagnostic tip based on the error."""
         error_msg = str(error).lower()
         backend_name = self.name.lower()
-        
+
         # Configuration errors
         if "not set" in error_msg or "missing" in error_msg:
             if "searxng" in backend_name or "url" in error_msg:
                 return "Add SEARXNG_URL environment variable in server configuration"
             return "Check required environment variables in server configuration"
-        
+
         # Path/Filesystem errors
         if "does not exist" in error_msg or "enoent" in error_msg or "no such file" in error_msg:
             if "filesystem" in backend_name or "directory" in error_msg:
                 return "Update allowed directories in server arguments"
             return "Check that paths exist and are accessible"
-        
+
         # Connection errors
         if "connection refused" in error_msg:
             return "Verify the backend service is running and accessible"
         if "timeout" in error_msg:
             return "Check network connectivity and firewall settings"
-        
+
         # Permission errors
         if "permission" in error_msg or "access denied" in error_msg:
             return "Verify file/directory permissions or use absolute paths"
-        
+
         # Package/Command errors
         if "command not found" in error_msg or "enoent" in error_msg:
             return "Ensure the command is installed and in PATH"
-        
+
         # Default tip
         return "Check server logs for detailed error information"
 
     async def connect(self) -> None:
         """Establish connection to the backend server."""
         import time
-        
+
         logger.info(
             f"[CONNECTION] Initiating connection to backend: {self.name} "
             f"(transport: {self.config.transport_type})"
         )
-        
+
         # Track connection attempt
         self._connection_attempts += 1
         self._last_connection_attempt = time.time()
-        
+
         # Clear previous error on new attempt
         self._last_error = None
         self._diagnostic_tip = None
@@ -147,9 +156,7 @@ class BackendConnection:
         self._exit_stack = AsyncExitStack()
 
         try:
-            logger.debug(
-                f"[CONNECTION] Starting transport-specific connection for {self.name}"
-            )
+            logger.debug(f"[CONNECTION] Starting transport-specific connection for {self.name}")
             if self.config.is_stdio:
                 await self._connect_stdio()
                 logger.info(f"[CONNECTION] Stdio transport established for {self.name}")
@@ -172,10 +179,8 @@ class BackendConnection:
                     f"[CONNECTION] Backend {self.name} connected successfully with "
                     f"{len(self._tools)} tools available"
                 )
-                logger.debug(
-                    f"[CONNECTION] Tools: {[tool.name for tool in self._tools]}"
-                )
-                
+                logger.debug(f"[CONNECTION] Tools: {[tool.name for tool in self._tools]}")
+
                 # Clear any previous error on successful connection
                 self._last_error = None
                 self._diagnostic_tip = None
@@ -184,15 +189,13 @@ class BackendConnection:
             # Store error details for diagnostics
             self._last_error = f"{type(e).__name__}: {e}"
             self._diagnostic_tip = self._generate_diagnostic_tip(e)
-            
+
             logger.error(
                 f"[CONNECTION] Failed to connect to backend {self.name}: {self._last_error}",
                 exc_info=True,
             )
-            logger.info(
-                f"[DIAGNOSTIC] Backend '{self.name}': {self._diagnostic_tip}"
-            )
-            
+            logger.info(f"[DIAGNOSTIC] Backend '{self.name}': {self._diagnostic_tip}")
+
             await self.disconnect()
             raise BackendConnectionError(f"Connection failed: {e}") from e
 
@@ -207,9 +210,7 @@ class BackendConnection:
             env={**os.environ, **self.config.env},
         )
 
-        transport = await self._exit_stack.enter_async_context(
-            stdio_client(server_params)
-        )
+        transport = await self._exit_stack.enter_async_context(stdio_client(server_params))
         read_stream, write_stream = transport
 
         self.session = await self._exit_stack.enter_async_context(
@@ -289,11 +290,7 @@ class BackendConnection:
 
         return filtered
 
-    async def call_tool(
-        self,
-        tool_name: str,
-        arguments: dict[str, object]
-    ) -> CallToolResult:
+    async def call_tool(self, tool_name: str, arguments: dict[str, object]) -> CallToolResult:
         """Call a tool on this backend."""
         if not self.session or not self._connected:
             raise RuntimeError(f"Backend {self.name} is not connected")
@@ -318,7 +315,8 @@ class BackendConnection:
             except Exception as e:
                 # Log the error but don't propagate - we're shutting down anyway
                 logger.warning(
-                    f"[DISCONNECT] Error closing exit stack for {self.name}: {type(e).__name__}: {e}"
+                    f"[DISCONNECT] Error closing exit stack for {self.name}: "
+                    f"{type(e).__name__}: {e}"
                 )
 
         self._exit_stack = None
@@ -337,9 +335,7 @@ class BackendConnection:
         if new_config is not None:
             old_args: list[str] = self.config.args
             self.config = new_config
-            logger.info(
-                f"Backend {self.name} config updated: {old_args} -> {new_config.args}"
-            )
+            logger.info(f"Backend {self.name} config updated: {old_args} -> {new_config.args}")
 
         # Disconnect
         await self.disconnect()
@@ -360,15 +356,19 @@ class BackendManager:
     """Manages connections to all backend MCP servers with thread-safe operations."""
 
     __slots__ = (
-        "_backends", "_tool_map", "_namespace_separator",
-        "_connection_timeout", "_request_timeout", "_lock"
+        "_backends",
+        "_tool_map",
+        "_namespace_separator",
+        "_connection_timeout",
+        "_request_timeout",
+        "_lock",
     )
 
     def __init__(
         self,
         namespace_separator: str = "__",
         connection_timeout: float = DEFAULT_CONNECTION_TIMEOUT,
-        request_timeout: float = DEFAULT_REQUEST_TIMEOUT
+        request_timeout: float = DEFAULT_REQUEST_TIMEOUT,
     ) -> None:
         self._backends: dict[str, BackendConnection] = {}
         self._tool_map: dict[str, str] = {}  # tool_name -> backend_name
@@ -379,11 +379,7 @@ class BackendManager:
 
     async def add_backend(self, config: ServerConfig) -> BackendConnection:
         """Add and connect a new backend (thread-safe)."""
-        backend = BackendConnection(
-            config,
-            self._connection_timeout,
-            self._request_timeout
-        )
+        backend = BackendConnection(config, self._connection_timeout, self._request_timeout)
         await backend.connect()
 
         async with self._lock:
@@ -400,7 +396,7 @@ class BackendManager:
 
     async def connect_all(self, configs: dict[str, ServerConfig]) -> None:
         """Connect to all configured backends.
-        
+
         Stores all backends (even failed ones) so diagnostics can be retrieved.
         """
         logger.info(f"Connecting to {len(configs)} backend(s)...")
@@ -412,7 +408,7 @@ class BackendManager:
 
         connected: int = 0
         failed: int = 0
-        
+
         for name, result in zip(configs.keys(), results, strict=True):
             if isinstance(result, Exception):
                 logger.error(f"Failed to connect to {name}: {result}")
@@ -421,7 +417,7 @@ class BackendManager:
                 connected += 1
 
         logger.info(f"Connected to {connected}/{len(configs)} backend(s), {failed} failed")
-        
+
         if failed > 0:
             logger.info(
                 "Some backends failed to connect. Use admin dashboard or /health "
@@ -430,38 +426,34 @@ class BackendManager:
 
     async def _try_connect(self, name: str, config: ServerConfig) -> BackendConnection:
         """Try to connect to a backend, logging errors.
-        
+
         If connection fails, the backend is still stored with error information
         for diagnostic purposes.
         """
-        backend = BackendConnection(
-            config,
-            self._connection_timeout,
-            self._request_timeout
-        )
-        
+        backend = BackendConnection(config, self._connection_timeout, self._request_timeout)
+
         try:
             await backend.connect()
-            
+
             async with self._lock:
                 self._backends[name] = backend
-                
+
                 # Update tool mapping
                 for tool in backend.tools:
                     namespaced_name = f"{config.name}{self._namespace_separator}{tool.name}"
                     if namespaced_name in self._tool_map:
                         logger.warning(f"Tool name conflict: {namespaced_name}")
                     self._tool_map[namespaced_name] = config.name
-            
+
             return backend
-            
+
         except Exception as e:
             logger.error(f"Backend {name} connection failed: {e}")
-            
+
             # Store the backend even if connection failed (for diagnostics)
             async with self._lock:
                 self._backends[name] = backend
-            
+
             raise
 
     async def disconnect_all(self) -> None:
@@ -481,7 +473,7 @@ class BackendManager:
                     *[backend.disconnect() for backend in backends_to_disconnect],
                     return_exceptions=True,
                 ),
-                timeout=5.0
+                timeout=5.0,
             )
         except TimeoutError:
             logger.warning("Backend disconnect timed out, forcing exit")
@@ -512,10 +504,7 @@ class BackendManager:
 
         return all_tools
 
-    def get_backend_for_tool(
-        self,
-        tool_name: str
-    ) -> BackendConnection | None:
+    def get_backend_for_tool(self, tool_name: str) -> BackendConnection | None:
         """Get the backend that handles a given tool."""
         # Tool name should already be namespaced: "backend__tool"
         if self._namespace_separator not in tool_name:
@@ -539,16 +528,16 @@ class BackendManager:
     def backends(self) -> dict[str, BackendConnection]:
         """Copy of backends dictionary."""
         return self._backends.copy()
-    
+
     def get_backend_diagnostics(self) -> list[dict[str, object]]:
         """Get diagnostic information for all backends.
-        
+
         Returns:
             List of backend diagnostic information including connection status,
             error messages, and fix tips.
         """
         diagnostics = []
-        
+
         # Include all backends (connected and failed)
         for name, backend in self._backends.items():
             diag = {
@@ -557,24 +546,22 @@ class BackendManager:
                 "status": "connected" if backend.is_connected else "error",
                 "tools": len(backend.tools),
                 "connection_attempts": backend.connection_attempts,
-                "diagnostic": None
+                "diagnostic": None,
             }
-            
+
             if not backend.is_connected and backend.last_error:
                 diag["diagnostic"] = {
                     "error_message": backend.last_error,
                     "fix_tip": backend.diagnostic_tip,
-                    "last_attempt": backend.last_connection_attempt
+                    "last_attempt": backend.last_connection_attempt,
                 }
-            
+
             diagnostics.append(diag)
-        
+
         return diagnostics
 
     async def restart_backend(
-        self,
-        name: str,
-        new_config: ServerConfig | None = None
+        self, name: str, new_config: ServerConfig | None = None
     ) -> BackendConnection:
         """Restart a specific backend with optionally new configuration (thread-safe).
 
@@ -609,7 +596,8 @@ class BackendManager:
         async with self._lock:
             # Remove old tool mappings for this backend
             tools_to_remove = [
-                tool_name for tool_name, backend_name in self._tool_map.items()
+                tool_name
+                for tool_name, backend_name in self._tool_map.items()
                 if backend_name == name
             ]
             for tool_name in tools_to_remove:

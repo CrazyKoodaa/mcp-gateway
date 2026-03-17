@@ -1,4 +1,5 @@
 """MCP protocol handlers for MCP Gateway server."""
+
 from __future__ import annotations
 
 import contextlib
@@ -108,15 +109,12 @@ class MCPHandlers:
                             mcp_tool.parameters = tool.inputSchema
 
                             # Also update the lowlevel server's tool cache
-                            if (
-                                hasattr(self.mcp_server, "_mcp_server")
-                                and hasattr(self.mcp_server._mcp_server, "_tool_cache")
+                            if hasattr(self.mcp_server, "_mcp_server") and hasattr(
+                                self.mcp_server._mcp_server, "_tool_cache"
                             ):
                                 from mcp.types import Tool as MCPTool
 
-                                self.mcp_server._mcp_server._tool_cache[
-                                    namespaced_name
-                                ] = MCPTool(
+                                self.mcp_server._mcp_server._tool_cache[namespaced_name] = MCPTool(
                                     name=mcp_tool.name,
                                     description=mcp_tool.description,
                                     inputSchema=mcp_tool.parameters,
@@ -159,9 +157,7 @@ class MCPHandlers:
                                 output_model=mcp_tool.fn_metadata.output_model,
                                 wrap_output=mcp_tool.fn_metadata.wrap_output,
                             )
-                            logger.debug(
-                                f"Set flexible argument model for {namespaced_name}"
-                            )
+                            logger.debug(f"Set flexible argument model for {namespaced_name}")
                         except Exception as e:
                             logger.warning(
                                 f"Failed to set flexible argument model for {namespaced_name}: {e}"
@@ -189,17 +185,13 @@ class MCPHandlers:
                 # MCP server is running
                 pass
         """
-        if self.mcp_server is None or not hasattr(
-            self.mcp_server, "session_manager"
-        ):
+        if self.mcp_server is None or not hasattr(self.mcp_server, "session_manager"):
             # No MCP server, just yield
             yield
             return
 
         # Verify tool schemas before starting session manager
-        logger.debug(
-            f"Pre-run check: {len(self.mcp_server._tool_manager._tools)} tools"
-        )
+        logger.debug(f"Pre-run check: {len(self.mcp_server._tool_manager._tools)} tools")
         for tool_name, mcp_tool in self.mcp_server._tool_manager._tools.items():
             has_tz = "timezone" in str(mcp_tool.parameters)
             logger.debug(

@@ -39,10 +39,12 @@ def setup_tracing(
         Configured TracerProvider
     """
     # Create resource
-    resource = Resource.create({
-        SERVICE_NAME: service_name,
-        SERVICE_VERSION: service_version,
-    })
+    resource = Resource.create(
+        {
+            SERVICE_NAME: service_name,
+            SERVICE_VERSION: service_version,
+        }
+    )
 
     # Create provider
     provider = TracerProvider(resource=resource)

@@ -85,7 +85,7 @@ class ConfigManager:
             "mcpServers": {
                 name: self._serialize_server(server)
                 for name, server in self.gateway_config.servers.items()
-            }
+            },
         }
 
     def _serialize_server(self, server: ServerConfig) -> dict[str, Any]:
@@ -128,13 +128,9 @@ class ConfigManager:
         if name not in self.gateway_config.servers:
             raise ValueError(f"Server '{name}' not found")
 
-        logger.info(
-            f"ConfigManager.update_server for '{name}' with args: {config.get('args', [])}"
-        )
+        logger.info(f"ConfigManager.update_server for '{name}' with args: {config.get('args', [])}")
         server = self._parse_server_config(name, config)
-        logger.info(
-            f"Parsed config for '{name}': command={server.command}, args={server.args}"
-        )
+        logger.info(f"Parsed config for '{name}': command={server.command}, args={server.args}")
         self.gateway_config.servers[name] = server
         await self.save()
 
@@ -160,12 +156,14 @@ class ConfigManager:
         args = config.get("args", [])
         if isinstance(args, str):
             import shlex
+
             args = shlex.split(args)
 
         # Parse command
         cmd = config.get("command")
         if cmd and " " in cmd and not args:
             import shlex
+
             parts = shlex.split(cmd)
             cmd = parts[0]
             args = parts[1:]
@@ -201,15 +199,9 @@ class AdminAuth:
             api_key = request.headers.get("X-API-Key")
             if api_key:
                 from .auth import AuthConfig
-                auth_config = getattr(
-                    request.app.state,
-                    "auth_config",
-                    AuthConfig()
-                )
-                if (
-                    auth_config.api_key
-                    and secrets.compare_digest(api_key, auth_config.api_key)
-                ):
+
+                auth_config = getattr(request.app.state, "auth_config", AuthConfig())
+                if auth_config.api_key and secrets.compare_digest(api_key, auth_config.api_key):
                     return True
 
             raise HTTPException(
@@ -233,12 +225,8 @@ class AdminAuth:
                 headers={"WWW-Authenticate": "Basic"},
             )
 
-        is_correct_username = secrets.compare_digest(
-            credentials.username, self.config.username
-        )
-        is_correct_password = secrets.compare_digest(
-            credentials.password, self.config.password
-        )
+        is_correct_username = secrets.compare_digest(credentials.username, self.config.username)
+        is_correct_password = secrets.compare_digest(credentials.password, self.config.password)
 
         if not (is_correct_username and is_correct_password):
             raise HTTPException(
@@ -280,20 +268,12 @@ def validate_server_config(config: dict[str, Any]) -> tuple[bool, str]:
     has_url = bool(config.get("url"))
 
     if not has_command and not has_url:
-        return (
-            False,
-            "Must specify either 'command' (for stdio) or 'url' (for remote)"
-        )
+        return (False, "Must specify either 'command' (for stdio) or 'url' (for remote)")
 
     # Validate type if specified
     server_type = config.get("type", "").lower()
-    if server_type and server_type not in (
-        "stdio", "sse", "streamable-http", "streamablehttp"
-    ):
-        return (
-            False,
-            f"Invalid type '{server_type}'. Must be: stdio, sse, streamable-http"
-        )
+    if server_type and server_type not in ("stdio", "sse", "streamable-http", "streamablehttp"):
+        return (False, f"Invalid type '{server_type}'. Must be: stdio, sse, streamable-http")
 
     # Validate URL format for remote servers
     if has_url:

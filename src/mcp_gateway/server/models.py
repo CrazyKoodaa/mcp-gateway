@@ -20,10 +20,7 @@ class CallToolRequest(BaseModel):
     """
 
     name: str = Field(description="Name of the tool to call")
-    arguments: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Arguments for the tool"
-    )
+    arguments: dict[str, Any] = Field(default_factory=dict, description="Arguments for the tool")
 
 
 class ServerConfigResponse(BaseModel):

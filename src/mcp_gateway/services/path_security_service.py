@@ -21,6 +21,7 @@ class PathCheckResult:
         matched_pattern: The pattern that matched (if sensitive)
         platform: The platform this check was performed on
     """
+
     path: str
     is_sensitive: bool
     matched_pattern: str | None = None
@@ -251,9 +252,7 @@ class PathSecurityService:
             normalized = normalized.rstrip("/")
         return normalized.lower()
 
-    def _path_matches_pattern(
-        self, normalized_path: str, original_path: str, pattern: str
-    ) -> bool:
+    def _path_matches_pattern(self, normalized_path: str, original_path: str, pattern: str) -> bool:
         """Check if a path matches a sensitivity pattern.
 
         Args:

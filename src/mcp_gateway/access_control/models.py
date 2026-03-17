@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 class AccessRequestStatus(str, Enum):  # noqa: UP042
     """Status of an access request."""
+
     PENDING = "pending"
     APPROVED = "approved"
     DENIED = "denied"
@@ -21,6 +22,7 @@ class AccessRequestStatus(str, Enum):  # noqa: UP042
 @dataclass
 class AccessRequest:
     """A pending access request."""
+
     id: str
     mcp_name: str
     tool_name: str
@@ -35,6 +37,7 @@ class AccessRequest:
 @dataclass
 class AccessGrant:
     """A time-bound access grant."""
+
     id: str
     request_id: str
     mcp_name: str
@@ -44,7 +47,7 @@ class AccessGrant:
     expires_at: datetime
     duration_minutes: int
     approved_by: str  # "cli" or "web"
-    
+
     @property
     def server_name(self) -> str:
         """Alias for mcp_name for backward compatibility."""
@@ -58,6 +61,7 @@ class ConfigChangeRequest:
     Granular: Each sensitive path gets its own approval code.
     Safe paths are applied immediately.
     """
+
     id: str
     server_name: str  # Name of the MCP server being modified
     change_type: str  # 'add', 'modify', 'remove'
@@ -81,6 +85,7 @@ class ConfigChangeRequest:
 @dataclass
 class ConfigChangeGrant:
     """An approved time-bound config change for a specific path."""
+
     id: str
     request_id: str
     server_name: str
@@ -100,6 +105,7 @@ class ConfigChangeGrant:
 
 class AccessRequestCreate(BaseModel):
     """Model for creating an access request."""
+
     mcp_name: str
     tool_name: str
     path: str
@@ -108,6 +114,7 @@ class AccessRequestCreate(BaseModel):
 
 class AccessRequestApprove(BaseModel):
     """Model for approving an access request."""
+
     code: str
     duration_minutes: int = 1  # Default 1 minute
     approved_by: str = "cli"  # or "web"

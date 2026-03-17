@@ -1,4 +1,5 @@
 """Middleware setup for MCP Gateway server."""
+
 from __future__ import annotations
 
 import logging
@@ -24,9 +25,7 @@ class CircuitBreakerMiddleware:
         self.app = app
         self.deps = deps
 
-    async def __call__(
-        self, scope: dict[str, object], receive: object, send: object
-    ) -> None:
+    async def __call__(self, scope: dict[str, object], receive: object, send: object) -> None:
         """ASGI application interface."""
         if scope["type"] != "http":
             await self.app(scope, receive, send)
@@ -53,8 +52,7 @@ class CircuitBreakerMiddleware:
                 if cb and cb.is_open:  # type: ignore
                     retry_after = cb._get_retry_after()  # type: ignore
                     logger.warning(
-                        f"Circuit breaker open for {backend_name}, "
-                        f"retry after {retry_after:.0f}s"
+                        f"Circuit breaker open for {backend_name}, retry after {retry_after:.0f}s"
                     )
                     response = JSONResponse(
                         status_code=503,
@@ -97,6 +95,7 @@ def setup_middleware(app: FastAPI, deps: ServerDependencies) -> None:
     # Auth middleware (if enabled) - uses setup_auth from auth module
     if deps.auth:
         from ..auth import setup_auth
+
         setup_auth(app, deps.auth.config)
 
     # Circuit breaker middleware

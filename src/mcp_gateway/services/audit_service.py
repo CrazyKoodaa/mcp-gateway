@@ -52,6 +52,7 @@ class AuditEvent:
         chain_hash: Hash chain for tamper detection
         ip_address: Optional IP address for remote actions
     """
+
     timestamp: str
     event_type: str
     actor: str
@@ -167,7 +168,7 @@ class AuditService:
         self._running = False
         # Close all handlers
         for handler in self._handlers:
-            if hasattr(handler, 'close'):
+            if hasattr(handler, "close"):
                 handler.close()
 
     @classmethod

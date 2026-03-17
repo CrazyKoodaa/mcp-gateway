@@ -65,7 +65,7 @@ class AccessControlManager:
 
         # Backend restart callback for auto-revert
         self._backend_restart_callback: Callable[[str], Awaitable[None]] | None = None
-        
+
         # Lock for thread-safe grant creation
         self._grant_lock = asyncio.Lock()
 
@@ -81,9 +81,7 @@ class AccessControlManager:
         """
         self._config_revert_callback = callback
 
-    def set_backend_restart_callback(
-        self, callback: Callable[[str], Awaitable[None]]
-    ) -> None:
+    def set_backend_restart_callback(self, callback: Callable[[str], Awaitable[None]]) -> None:
         """Set callback for backend restart during auto-revert.
 
         Args:
@@ -125,9 +123,7 @@ class AccessControlManager:
         """
         self._notification_callbacks.append(callback)
 
-    def _notify(
-        self, event_type: str, data: dict[str, Any]
-    ) -> None:
+    def _notify(self, event_type: str, data: dict[str, Any]) -> None:
         """Notify all registered callbacks."""
         for callback in self._notification_callbacks:
             try:
@@ -141,8 +137,8 @@ class AccessControlManager:
     def _generate_code(self) -> str:
         """Generate a human-readable 8-char approval code like 'ABCD-1234'."""
         # Generate 4 letters and 4 numbers for readability
-        letters = ''.join(secrets.choice(string.ascii_uppercase) for _ in range(4))
-        numbers = ''.join(secrets.choice(string.digits) for _ in range(4))
+        letters = "".join(secrets.choice(string.ascii_uppercase) for _ in range(4))
+        numbers = "".join(secrets.choice(string.digits) for _ in range(4))
         return f"{letters}-{numbers}"
 
     def _generate_id(self) -> str:
@@ -152,6 +148,7 @@ class AccessControlManager:
     def _normalize_path(self, path: str) -> str:
         """Normalize a path for comparison."""
         from pathlib import Path
+
         try:
             # Expand home directory
             expanded = Path(path).expanduser()
@@ -177,6 +174,7 @@ class AccessControlManager:
             True if the path is within any allowed path
         """
         from pathlib import Path
+
         try:
             requested = Path(requested_path).expanduser().resolve()
 
@@ -207,6 +205,7 @@ class AccessControlManager:
                 # Check if path matches or is within granted path
                 try:
                     from pathlib import Path
+
                     requested = Path(path).expanduser().resolve()
                     granted = Path(grant.path).expanduser().resolve()
                     if requested == granted or granted in requested.parents:
@@ -245,13 +244,14 @@ class AccessControlManager:
         """
         # Validate config before processing
         from ..admin import validate_server_config
+
         is_valid, error_msg = validate_server_config(new_config)
         if not is_valid:
             # Return a special marker that this is a validation error
             return False, [{"error": error_msg}], []
 
-        new_args = new_config.get('args', [])
-        original_args = original_config.get('args', [])
+        new_args = new_config.get("args", [])
+        original_args = original_config.get("args", [])
 
         # Find paths that were added (in new but not in original)
         added_paths = [arg for arg in new_args if arg not in original_args]
@@ -280,10 +280,12 @@ class AccessControlManager:
             # Check if there's already a pending request for this specific path
             existing_req = None
             for req in self._pending_config_changes.values():
-                if (req.server_name == server_name and
-                    req.sensitive_path == path and
-                    req.status == AccessRequestStatus.PENDING and
-                    req.expires_at > datetime.now(UTC)):
+                if (
+                    req.server_name == server_name
+                    and req.sensitive_path == path
+                    and req.status == AccessRequestStatus.PENDING
+                    and req.expires_at > datetime.now(UTC)
+                ):
                     existing_req = req
                     break
 
@@ -292,9 +294,7 @@ class AccessControlManager:
                 existing_req.target_args = new_args
                 existing_req.original_config_checksum = original_checksum
                 pending_info.append({"code": existing_req.code, "path": path})
-                logger.debug(
-                    f"Config change pending for {server_name} path {path} (existing)"
-                )
+                logger.debug(f"Config change pending for {server_name} path {path} (existing)")
             else:
                 # Create new pending request for this specific path
                 path_index = new_args.index(path) if path in new_args else -1
@@ -318,22 +318,25 @@ class AccessControlManager:
                 pending_info.append({"code": request.code, "path": path})
 
                 logger.info(
-                    f"Config change request: {server_name} wants {path} "
-                    f"(code: {request.code})"
+                    f"Config change request: {server_name} wants {path} (code: {request.code})"
                 )
 
                 # Notify admin UI
-                self._notify("config_request_created", {
-                    "code": request.code,
-                    "server_name": server_name,
-                    "change_type": change_type,
-                    "sensitive_path": path,
-                    "created_at": request.created_at.isoformat(),
-                    "expires_at": request.expires_at.isoformat(),
-                })
+                self._notify(
+                    "config_request_created",
+                    {
+                        "code": request.code,
+                        "server_name": server_name,
+                        "change_type": change_type,
+                        "sensitive_path": path,
+                        "created_at": request.created_at.isoformat(),
+                        "expires_at": request.expires_at.isoformat(),
+                    },
+                )
 
                 # Audit log
                 from ..audit import log_config_change_requested
+
                 log_config_change_requested(server_name, path, request.code, actor="web")
 
         return True, pending_info, safe_paths
@@ -383,7 +386,7 @@ class AccessControlManager:
 
         # Create the grant
         # Extract original_args from original_config for revert capability
-        original_args = request.original_config.get('args', [])
+        original_args = request.original_config.get("args", [])
 
         grant = ConfigChangeGrant(
             id=self._generate_id(),
@@ -410,25 +413,29 @@ class AccessControlManager:
         )
 
         # Notify admin UI
-        self._notify("config_request_approved", {
-            "code": code,
-            "grant_id": grant.id,
-            "server_name": grant.server_name,
-            "sensitive_path": grant.sensitive_path,
-            "duration_minutes": duration_minutes,
-            "expires_at": grant.expires_at.isoformat(),
-            "approved_by": approved_by,
-        })
+        self._notify(
+            "config_request_approved",
+            {
+                "code": code,
+                "grant_id": grant.id,
+                "server_name": grant.server_name,
+                "sensitive_path": grant.sensitive_path,
+                "duration_minutes": duration_minutes,
+                "expires_at": grant.expires_at.isoformat(),
+                "approved_by": approved_by,
+            },
+        )
 
         # Audit log
         from ..audit import log_config_change_approved
+
         log_config_change_approved(
             grant.server_name,
             grant.sensitive_path,
             code,
             grant.id,
             duration_minutes,
-            actor=approved_by
+            actor=approved_by,
         )
 
         return True, f"Config change approved for {duration_minutes} minutes", grant
@@ -449,12 +456,15 @@ class AccessControlManager:
         logger.info(f"Config change denied: {request.server_name} (by {denied_by})")
 
         # Notify admin UI
-        self._notify("config_request_denied", {
-            "code": code,
-            "server_name": request.server_name,
-            "sensitive_path": request.sensitive_path,
-            "denied_by": denied_by,
-        })
+        self._notify(
+            "config_request_denied",
+            {
+                "code": code,
+                "server_name": request.server_name,
+                "sensitive_path": request.sensitive_path,
+                "denied_by": denied_by,
+            },
+        )
 
         return True, "Config change request denied"
 
@@ -487,11 +497,14 @@ class AccessControlManager:
         del self._config_grants[grant_id]
 
         # Notify
-        self._notify("config_reverted", {
-            "grant_id": grant_id,
-            "server_name": grant.server_name,
-            "reason": "manual",
-        })
+        self._notify(
+            "config_reverted",
+            {
+                "grant_id": grant_id,
+                "server_name": grant.server_name,
+                "reason": "manual",
+            },
+        )
 
         return True, "Config change reverted"
 
@@ -499,17 +512,15 @@ class AccessControlManager:
         """Get all pending config change requests."""
         now = datetime.now(UTC)
         return [
-            req for req in self._pending_config_changes.values()
+            req
+            for req in self._pending_config_changes.values()
             if req.status == AccessRequestStatus.PENDING and req.expires_at > now
         ]
 
     def get_active_config_grants(self) -> list[ConfigChangeGrant]:
         """Get all active config change grants."""
         now = datetime.now(UTC)
-        return [
-            grant for grant in self._config_grants.values()
-            if grant.expires_at > now
-        ]
+        return [grant for grant in self._config_grants.values() if grant.expires_at > now]
 
     def get_config_request_by_code(self, code: str) -> ConfigChangeRequest | None:
         """Get a config change request by code."""
@@ -536,28 +547,32 @@ class AccessControlManager:
                 logger.error(f"Failed to restart backend after auto-revert: {e}")
 
         # Notify
-        self._notify("config_reverted", {
-            "grant_id": grant.id,
-            "server_name": grant.server_name,
-            "reason": "expired",
-            "sensitive_path": grant.sensitive_path,
-        })
+        self._notify(
+            "config_reverted",
+            {
+                "grant_id": grant.id,
+                "server_name": grant.server_name,
+                "reason": "expired",
+                "sensitive_path": grant.sensitive_path,
+            },
+        )
 
         # Audit log
         from ..audit import log_config_change_reverted
+
         log_config_change_reverted(
-            grant.server_name,
-            grant.sensitive_path,
-            grant.id,
-            reason="expired"
+            grant.server_name, grant.sensitive_path, grant.id, reason="expired"
         )
 
         # Notify that backend was restarted after revert
-        self._notify("backend_restarted", {
-            "server_name": grant.server_name,
-            "reason": "config_change_reverted",
-            "sensitive_path": grant.sensitive_path,
-        })
+        self._notify(
+            "backend_restarted",
+            {
+                "server_name": grant.server_name,
+                "reason": "config_change_reverted",
+                "sensitive_path": grant.sensitive_path,
+            },
+        )
 
     # ==================== Original Access Control Methods ====================
 
@@ -589,11 +604,13 @@ class AccessControlManager:
 
         # Check if there's already a pending request for this
         for req in self._pending_requests.values():
-            if (req.mcp_name == mcp_name and
-                req.tool_name == tool_name and
-                req.path == path and
-                req.status == AccessRequestStatus.PENDING and
-                req.expires_at > datetime.now(UTC)):
+            if (
+                req.mcp_name == mcp_name
+                and req.tool_name == tool_name
+                and req.path == path
+                and req.status == AccessRequestStatus.PENDING
+                and req.expires_at > datetime.now(UTC)
+            ):
                 logger.debug(f"Access pending for {mcp_name} to {path} (existing request)")
                 return False, req.code
 
@@ -612,19 +629,20 @@ class AccessControlManager:
 
         self._pending_requests[request.code] = request
 
-        logger.info(
-            f"Access request: {mcp_name} wants {path} (code: {request.code})"
-        )
+        logger.info(f"Access request: {mcp_name} wants {path} (code: {request.code})")
 
         # Notify admin UI
-        self._notify("request_created", {
-            "code": request.code,
-            "mcp_name": mcp_name,
-            "tool_name": tool_name,
-            "path": path,
-            "created_at": request.created_at.isoformat(),
-            "expires_at": request.expires_at.isoformat(),
-        })
+        self._notify(
+            "request_created",
+            {
+                "code": request.code,
+                "mcp_name": mcp_name,
+                "tool_name": tool_name,
+                "path": path,
+                "created_at": request.created_at.isoformat(),
+                "expires_at": request.expires_at.isoformat(),
+            },
+        )
 
         return False, request.code
 
@@ -692,21 +710,21 @@ class AccessControlManager:
         )
 
         # Notify admin UI
-        self._notify("request_approved", {
-            "code": code,
-            "grant_id": grant.id,
-            "mcp_name": grant.mcp_name,
-            "tool_name": grant.tool_name,
-            "path": grant.path,
-            "duration_minutes": duration_minutes,
-            "expires_at": grant.expires_at.isoformat(),
-            "approved_by": approved_by,
-        })
+        self._notify(
+            "request_approved",
+            {
+                "code": code,
+                "grant_id": grant.id,
+                "mcp_name": grant.mcp_name,
+                "tool_name": grant.tool_name,
+                "path": grant.path,
+                "duration_minutes": duration_minutes,
+                "expires_at": grant.expires_at.isoformat(),
+                "approved_by": approved_by,
+            },
+        )
 
         return True, f"Access granted for {duration_minutes} minutes", grant
-
-    # Alias for backward compatibility
-    grant_access = approve_request
 
     async def deny_request(self, code: str, denied_by: str = "cli") -> tuple[bool, str]:
         """Deny an access request by code."""
@@ -724,13 +742,16 @@ class AccessControlManager:
         logger.info(f"Access denied: {request.mcp_name} to {request.path} (by {denied_by})")
 
         # Notify admin UI
-        self._notify("request_denied", {
-            "code": code,
-            "mcp_name": request.mcp_name,
-            "tool_name": request.tool_name,
-            "path": request.path,
-            "denied_by": denied_by,
-        })
+        self._notify(
+            "request_denied",
+            {
+                "code": code,
+                "mcp_name": request.mcp_name,
+                "tool_name": request.tool_name,
+                "path": request.path,
+                "denied_by": denied_by,
+            },
+        )
 
         return True, "Access request denied"
 
@@ -738,24 +759,22 @@ class AccessControlManager:
         """Get all pending access requests."""
         now = datetime.now(UTC)
         return [
-            req for req in self._pending_requests.values()
+            req
+            for req in self._pending_requests.values()
             if req.status == AccessRequestStatus.PENDING and req.expires_at > now
         ]
 
     async def get_active_grants(self, server_name: str | None = None) -> list[AccessGrant]:
         """Get all active (non-expired) access grants.
-        
+
         Args:
             server_name: Optional filter by server name (mcp_name)
-            
+
         Returns:
             List of active grants, optionally filtered by server
         """
         now = datetime.now(UTC)
-        grants = [
-            grant for grant in self._grants.values()
-            if grant.expires_at > now
-        ]
+        grants = [grant for grant in self._grants.values() if grant.expires_at > now]
         if server_name:
             grants = [g for g in grants if g.mcp_name == server_name]
         return grants
@@ -769,34 +788,32 @@ class AccessControlManager:
         duration_minutes: float = 1,
     ) -> AccessGrant:
         """Directly grant access without approval process.
-        
+
         This creates an access grant immediately without requiring
         a prior access request. Used for admin/CLI grants.
-        
+
         If a grant for the same (server_name, tool_name, path) already exists,
         the existing grant is returned (idempotent behavior).
-        
+
         Args:
             server_name: Name of the MCP server
             user_id: ID of the user being granted access
             tool_name: Name of the tool being granted
             path: Path being granted access to
             duration_minutes: How long the grant is valid (default 1 minute)
-            
+
         Returns:
             The created or existing AccessGrant
         """
         async with self._grant_lock:
             now = datetime.now(UTC)
-            
+
             # Check if an active grant already exists for this combination
             existing_grant = self._find_active_grant(server_name, tool_name, path)
             if existing_grant:
-                logger.debug(
-                    f"Returning existing grant for {server_name}/{tool_name}/{path}"
-                )
+                logger.debug(f"Returning existing grant for {server_name}/{tool_name}/{path}")
                 return existing_grant
-            
+
             # Create the grant directly
             grant = AccessGrant(
                 id=self._generate_id(),
@@ -809,55 +826,56 @@ class AccessControlManager:
                 duration_minutes=int(duration_minutes),
                 approved_by=user_id,
             )
-            
+
             # Store the grant
             self._grants[grant.id] = grant
-            
+
             # Index by MCP and path
             if grant.mcp_name not in self._mcp_grants:
                 self._mcp_grants[grant.mcp_name] = set()
             self._mcp_grants[grant.mcp_name].add(grant.id)
-            
+
             path_key = self._normalize_path(grant.path)
             if path_key not in self._path_grants:
                 self._path_grants[path_key] = set()
             self._path_grants[path_key].add(grant.id)
-            
+
             logger.info(
                 f"Direct access granted: {grant.mcp_name} can access {grant.path} "
                 f"for {duration_minutes}min (grant: {grant.id}, by: {user_id})"
             )
-            
+
             # Notify admin UI
-            self._notify("request_approved", {
-                "grant_id": grant.id,
-                "mcp_name": grant.mcp_name,
-                "tool_name": grant.tool_name,
-                "path": grant.path,
-                "duration_minutes": duration_minutes,
-                "expires_at": grant.expires_at.isoformat(),
-                "approved_by": user_id,
-                "direct_grant": True,
-            })
-            
+            self._notify(
+                "request_approved",
+                {
+                    "grant_id": grant.id,
+                    "mcp_name": grant.mcp_name,
+                    "tool_name": grant.tool_name,
+                    "path": grant.path,
+                    "duration_minutes": duration_minutes,
+                    "expires_at": grant.expires_at.isoformat(),
+                    "approved_by": user_id,
+                    "direct_grant": True,
+                },
+            )
+
             return grant
-    
-    def _find_active_grant(
-        self, server_name: str, tool_name: str, path: str
-    ) -> AccessGrant | None:
+
+    def _find_active_grant(self, server_name: str, tool_name: str, path: str) -> AccessGrant | None:
         """Find an active grant for the given combination.
-        
+
         Args:
             server_name: MCP server name
             tool_name: Tool name
             path: Path
-            
+
         Returns:
             Active grant if found, None otherwise
         """
         now = datetime.now(UTC)
         path_key = self._normalize_path(path)
-        
+
         # Check grants for this server
         grant_ids = self._mcp_grants.get(server_name, set())
         for grant_id in grant_ids:
@@ -891,12 +909,15 @@ class AccessControlManager:
         logger.info(f"Grant revoked: {grant_id}")
 
         # Notify admin UI
-        self._notify("request_expired", {
-            "grant_id": grant_id,
-            "mcp_name": grant.mcp_name,
-            "path": grant.path,
-            "reason": "revoked",
-        })
+        self._notify(
+            "request_expired",
+            {
+                "grant_id": grant_id,
+                "mcp_name": grant.mcp_name,
+                "path": grant.path,
+                "reason": "revoked",
+            },
+        )
 
         return True
 
@@ -917,25 +938,28 @@ class AccessControlManager:
 
         # Clean up expired pending requests
         expired_codes = [
-            code for code, req in self._pending_requests.items()
+            code
+            for code, req in self._pending_requests.items()
             if req.status == AccessRequestStatus.PENDING and req.expires_at < now
         ]
         for code in expired_codes:
             req = self._pending_requests[code]
             req.status = AccessRequestStatus.EXPIRED
             logger.debug(f"Request expired: {code}")
-            self._notify("request_expired", {
-                "code": code,
-                "mcp_name": req.mcp_name,
-                "path": req.path,
-                "reason": "timeout",
-            })
+            self._notify(
+                "request_expired",
+                {
+                    "code": code,
+                    "mcp_name": req.mcp_name,
+                    "path": req.path,
+                    "reason": "timeout",
+                },
+            )
 
         # Clean up expired grants (with lock for thread safety)
         async with self._grant_lock:
             expired_grants = [
-                grant_id for grant_id, grant in self._grants.items()
-                if grant.expires_at < now
+                grant_id for grant_id, grant in self._grants.items() if grant.expires_at < now
             ]
             for grant_id in expired_grants:
                 grant = self._grants[grant_id]
@@ -958,33 +982,40 @@ class AccessControlManager:
                 del self._grants[grant_id]
 
                 logger.debug(f"Grant expired and removed: {grant_id}")
-                self._notify("request_expired", {
-                    "grant_id": grant_id,
-                    "mcp_name": grant.mcp_name,
-                    "path": grant.path,
-                    "reason": "expired",
-                })
+                self._notify(
+                    "request_expired",
+                    {
+                        "grant_id": grant_id,
+                        "mcp_name": grant.mcp_name,
+                        "path": grant.path,
+                        "reason": "expired",
+                    },
+                )
 
         # Clean up expired config change requests
         expired_config_codes = [
-            code for code, config_req in self._pending_config_changes.items()
-            if config_req.status == AccessRequestStatus.PENDING
-            and config_req.expires_at < now
+            code
+            for code, config_req in self._pending_config_changes.items()
+            if config_req.status == AccessRequestStatus.PENDING and config_req.expires_at < now
         ]
         for code in expired_config_codes:
             config_req: ConfigChangeRequest = self._pending_config_changes[code]
             config_req.status = AccessRequestStatus.EXPIRED
             logger.debug(f"Config change request expired: {code}")
-            self._notify("config_request_expired", {
-                "code": code,
-                "server_name": config_req.server_name,
-                "sensitive_path": config_req.sensitive_path,
-                "reason": "timeout",
-            })
+            self._notify(
+                "config_request_expired",
+                {
+                    "code": code,
+                    "server_name": config_req.server_name,
+                    "sensitive_path": config_req.sensitive_path,
+                    "reason": "timeout",
+                },
+            )
 
         # Clean up expired config grants and revert configs
         expired_config_grants = [
-            grant_id for grant_id, config_grant in self._config_grants.items()
+            grant_id
+            for grant_id, config_grant in self._config_grants.items()
             if config_grant.expires_at < now
         ]
         for grant_id in expired_config_grants:

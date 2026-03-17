@@ -25,9 +25,9 @@ T = TypeVar("T")
 class CircuitState(Enum):
     """Circuit breaker states."""
 
-    CLOSED = auto()      # Normal operation, requests pass through
-    OPEN = auto()        # Failure threshold reached, requests blocked
-    HALF_OPEN = auto()   # Testing if service has recovered
+    CLOSED = auto()  # Normal operation, requests pass through
+    OPEN = auto()  # Failure threshold reached, requests blocked
+    HALF_OPEN = auto()  # Testing if service has recovered
 
 
 class CircuitBreaker:
@@ -101,10 +101,7 @@ class CircuitBreaker:
         return self._state == CircuitState.HALF_OPEN
 
     async def call(
-        self,
-        func: Callable[P, Coroutine[Any, Any, T]],
-        *args: P.args,
-        **kwargs: P.kwargs
+        self, func: Callable[P, Coroutine[Any, Any, T]], *args: P.args, **kwargs: P.kwargs
     ) -> T:
         """Call a function with circuit breaker protection.
 
@@ -173,10 +170,10 @@ class CircuitBreaker:
             raise
 
     def __call__(
-        self,
-        func: Callable[P, Coroutine[Any, Any, T]]
+        self, func: Callable[P, Coroutine[Any, Any, T]]
     ) -> Callable[P, Coroutine[Any, Any, T]]:
         """Decorator to wrap a function with circuit breaker."""
+
         @wraps(func)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             return await self.call(func, *args, **kwargs)
@@ -187,8 +184,7 @@ class CircuitBreaker:
 
     async def _update_state(self) -> None:
         """Update circuit state based on time and failures."""
-        if (self._state == CircuitState.OPEN and
-            self._last_failure_time is not None):
+        if self._state == CircuitState.OPEN and self._last_failure_time is not None:
             # Check if recovery timeout has passed
             elapsed = time.time() - self._last_failure_time
             if elapsed >= self.recovery_timeout:
@@ -213,7 +209,8 @@ class CircuitBreaker:
                 if self._success_count >= self.half_open_max_calls:
                     logger.info(
                         f"[CIRCUIT] State transition for '{self.name}': "
-                        f"HALF_OPEN -> CLOSED (recovery successful after {self._failure_count} failures)"
+                        f"HALF_OPEN -> CLOSED (recovery successful after "
+                        f"{self._failure_count} failures)"
                     )
                     self._state = CircuitState.CLOSED
                     self._failure_count = 0
@@ -241,7 +238,8 @@ class CircuitBreaker:
                 if self._failure_count >= self.failure_threshold:
                     logger.warning(
                         f"[CIRCUIT] State transition for '{self.name}': "
-                        f"CLOSED -> OPEN (failure threshold reached: {self._failure_count}/{self.failure_threshold})"
+                        f"CLOSED -> OPEN (failure threshold reached: "
+                        f"{self._failure_count}/{self.failure_threshold})"
                     )
                     self._state = CircuitState.OPEN
             elif self._state == CircuitState.HALF_OPEN:

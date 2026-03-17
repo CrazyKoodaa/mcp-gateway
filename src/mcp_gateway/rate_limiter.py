@@ -20,6 +20,7 @@ class RateLimitResult:
         reset_time: Unix timestamp when the rate limit resets
         retry_after: Seconds to wait before retry (if denied)
     """
+
     allowed: bool
     remaining: int
     reset_time: float
@@ -50,6 +51,7 @@ class TokenBucket:
         last_update: Last time bucket was updated
         refill_rate: Tokens added per second
     """
+
     capacity: int
     tokens: float = field(default=0.0)
     last_update: float = field(default_factory=time.time)
@@ -134,7 +136,7 @@ class MemoryRateLimiter:
 
     async def start(self) -> None:
         """Start the rate limiter.
-        
+
         Note: Cleanup task is already started in __init__.
         This method exists for lifecycle compatibility.
         """

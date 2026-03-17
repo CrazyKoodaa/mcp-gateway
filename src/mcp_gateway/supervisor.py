@@ -101,6 +101,7 @@ class SupervisedBackend:
         try:
             # Create and connect backend with proper timeout configuration
             from .backends import DEFAULT_CONNECTION_TIMEOUT, DEFAULT_REQUEST_TIMEOUT
+
             self.backend = BackendConnection(
                 self.config,
                 connection_timeout=DEFAULT_CONNECTION_TIMEOUT,

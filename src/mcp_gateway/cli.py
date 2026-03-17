@@ -47,9 +47,7 @@ async def check_pending_config_changes(api_url: str) -> list[dict[str, Any]]:
             return []
 
 
-async def approve_request(
-    api_url: str, code: str, duration: int
-) -> dict[str, Any]:
+async def approve_request(api_url: str, code: str, duration: int) -> dict[str, Any]:
     """Approve an access request by code."""
     async with httpx.AsyncClient() as client:
         try:
@@ -87,9 +85,7 @@ async def approve_config_change(api_url: str, code: str, duration: int) -> dict:
             return {"success": False, "error": str(e)}
 
 
-async def get_request_details(
-    api_url: str, code: str
-) -> dict[str, Any] | None:
+async def get_request_details(api_url: str, code: str) -> dict[str, Any] | None:
     """Get details of a specific access request."""
     async with httpx.AsyncClient() as client:
         try:
@@ -103,9 +99,7 @@ async def get_request_details(
             return None
 
 
-async def get_config_change_details(
-    api_url: str, code: str
-) -> dict[str, Any] | None:
+async def get_config_change_details(api_url: str, code: str) -> dict[str, Any] | None:
     """Get details of a specific config change request."""
     async with httpx.AsyncClient() as client:
         try:
@@ -155,9 +149,7 @@ def print_pending_requests(requests: list[dict[str, Any]]) -> None:
     print("─" * 60)
 
 
-def print_pending_config_changes(
-    requests: list[dict[str, Any]]
-) -> None:
+def print_pending_config_changes(requests: list[dict[str, Any]]) -> None:
     """Print pending config change requests in a formatted way."""
     if not requests:
         print("📭 No pending config change requests.")
@@ -262,19 +254,17 @@ async def interactive_approve(api_url: str) -> None:
             print(f"❌ Code '{user_input}' not found or expired.")
 
 
-async def handle_access_approval(
-    api_url: str, code: str, req: dict[str, Any]
-) -> None:
+async def handle_access_approval(api_url: str, code: str, req: dict[str, Any]) -> None:
     """Handle approval of an access request."""
     # Show request details
     print(f"""
 ┌─────────────────────────────────────────────────────────────┐
 │                    Access Request Details                   │
 ├─────────────────────────────────────────────────────────────┤
-│  MCP Server:  {req.get('mcp_name', 'Unknown'):<40}│
-│  Tool:        {req.get('tool_name', 'Unknown'):<40}│
-│  Path:        {req.get('path', 'Unknown'):<40}│
-│  Requested:   {req.get('created_at', 'Unknown'):<40}│
+│  MCP Server:  {req.get("mcp_name", "Unknown"):<40}│
+│  Tool:        {req.get("tool_name", "Unknown"):<40}│
+│  Path:        {req.get("path", "Unknown"):<40}│
+│  Requested:   {req.get("created_at", "Unknown"):<40}│
 └─────────────────────────────────────────────────────────────┘
 """)
 
@@ -316,8 +306,8 @@ async def handle_access_approval(
         print(f"""
 ✅ APPROVED!
 
-   Grant ID: {grant.get('id', 'N/A')}
-   Expires:  {grant.get('expires_at', 'N/A')}
+   Grant ID: {grant.get("id", "N/A")}
+   Expires:  {grant.get("expires_at", "N/A")}
 
    The MCP server can now access the requested path.
    Access will be automatically revoked at expiration.
@@ -326,9 +316,7 @@ async def handle_access_approval(
         print(f"\n❌ Approval failed: {result.get('error', 'Unknown error')}")
 
 
-async def handle_config_change_approval(
-    api_url: str, code: str, req: dict[str, Any]
-) -> None:
+async def handle_config_change_approval(api_url: str, code: str, req: dict[str, Any]) -> None:
     """Handle approval of a config change request."""
     server_name = req.get("server_name", "Unknown")
     change_type = req.get("change_type", "Unknown")
@@ -343,7 +331,7 @@ async def handle_config_change_approval(
 │  Server:        {server_name:<40}│
 │  Change Type:   {change_type:<40}│
 │  Sensitive:     {paths_str:<40}│
-│  Requested:     {req.get('created_at', 'Unknown'):<40}│
+│  Requested:     {req.get("created_at", "Unknown"):<40}│
 └─────────────────────────────────────────────────────────────┘
 """)
 
@@ -388,9 +376,9 @@ async def handle_config_change_approval(
         print(f"""
 ✅ CONFIG CHANGE APPROVED!
 
-   Grant ID: {grant.get('id', 'N/A')}
-   Server:   {grant.get('server_name', 'N/A')}
-   Expires:  {grant.get('expires_at', 'N/A')}
+   Grant ID: {grant.get("id", "N/A")}
+   Server:   {grant.get("server_name", "N/A")}
+   Expires:  {grant.get("expires_at", "N/A")}
 
    ⚠️  The config change is now ACTIVE.
    🔄 It will be automatically reverted at expiration.
@@ -399,9 +387,7 @@ async def handle_config_change_approval(
         print(f"\n❌ Approval failed: {result.get('error', 'Unknown error')}")
 
 
-async def quick_approve(
-    api_url: str, code: str, duration: int = 1
-) -> None:
+async def quick_approve(api_url: str, code: str, duration: int = 1) -> None:
     """Quick approve with code provided as argument."""
     print_banner()
 
@@ -419,9 +405,9 @@ async def quick_approve(
 ┌─────────────────────────────────────────────────────────────┐
 │                    Access Request Details                   │
 ├─────────────────────────────────────────────────────────────┤
-│  MCP Server:  {req.get('mcp_name', 'Unknown'):<40}│
-│  Tool:        {req.get('tool_name', 'Unknown'):<40}│
-│  Path:        {req.get('path', 'Unknown'):<40}│
+│  MCP Server:  {req.get("mcp_name", "Unknown"):<40}│
+│  Tool:        {req.get("tool_name", "Unknown"):<40}│
+│  Path:        {req.get("path", "Unknown"):<40}│
 └─────────────────────────────────────────────────────────────┘
 """)
 
@@ -433,8 +419,8 @@ async def quick_approve(
             print(f"""
 ✅ APPROVED!
 
-   Grant ID: {grant.get('id', 'N/A')}
-   Expires:  {grant.get('expires_at', 'N/A')}
+   Grant ID: {grant.get("id", "N/A")}
+   Expires:  {grant.get("expires_at", "N/A")}
 
    The MCP server can now access the requested path.
 """)
@@ -466,9 +452,9 @@ async def quick_approve(
                 print(f"""
 ✅ CONFIG CHANGE APPROVED!
 
-   Grant ID: {grant.get('id', 'N/A')}
-   Server:   {grant.get('server_name', 'N/A')}
-   Expires:  {grant.get('expires_at', 'N/A')}
+   Grant ID: {grant.get("id", "N/A")}
+   Server:   {grant.get("server_name", "N/A")}
+   Expires:  {grant.get("expires_at", "N/A")}
 
    ⚠️  The config change is now ACTIVE.
    🔄 It will be automatically reverted at expiration.
@@ -507,7 +493,8 @@ def main() -> None:
         help="Approval code (e.g., ABCD-1234). If not provided, enters interactive mode.",
     )
     approve_parser.add_argument(
-        "-d", "--duration",
+        "-d",
+        "--duration",
         type=int,
         default=1,
         help="Duration in minutes (default: 1, max: 1440)",
@@ -611,14 +598,14 @@ def print_status_table(health: dict[str, Any], servers: list[dict[str, Any]]) ->
 ║                    MCP Gateway - Backend Status                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
-    
+
     # Gateway status
     status = health.get("status", "unknown")
     healthy = health.get("healthy", False)
     total = health.get("total_backends", 0)
     connected = health.get("connected_backends", 0)
     failed = health.get("failed_backends", 0)
-    
+
     status_icon = "✅" if healthy else "⚠️"
     print(f"{status_icon} Gateway Status: {status.upper()}")
     print(f"   Backends: {connected}/{total} connected", end="")
@@ -627,24 +614,24 @@ def print_status_table(health: dict[str, Any], servers: list[dict[str, Any]]) ->
     else:
         print()
     print()
-    
+
     # Backends table
     backends = health.get("backends", [])
     if not backends:
         print("📭 No backends configured.")
         return
-    
+
     # Header
     print("─" * 80)
     print(f"{'Backend':<20} {'Status':<12} {'Tools':<8} {'Type':<10} {'Error':<25}")
     print("─" * 80)
-    
+
     for backend in backends:
         name = backend.get("name", "Unknown")
         is_connected = backend.get("connected", False)
         tools = backend.get("tools", 0)
         backend_type = backend.get("type", "unknown")
-        
+
         if is_connected:
             status_str = "✅ OK"
             error_str = "-"
@@ -653,12 +640,12 @@ def print_status_table(health: dict[str, Any], servers: list[dict[str, Any]]) ->
             diagnostic = backend.get("diagnostic", {})
             error_msg = diagnostic.get("error_message", "Connection failed")
             error_str = error_msg[:24] if error_msg else "Unknown error"
-        
+
         print(f"{name:<20} {status_str:<12} {tools:<8} {backend_type:<10} {error_str:<25}")
-    
+
     print("─" * 80)
     print()
-    
+
     # Show fix tips for failed backends
     failed_backends = [b for b in backends if not b.get("connected", False)]
     if failed_backends:
@@ -676,15 +663,16 @@ def print_status_table(health: dict[str, Any], servers: list[dict[str, Any]]) ->
 async def show_status(api_url: str, json_output: bool = False) -> None:
     """Show backend status."""
     health = await get_health_status(api_url)
-    
+
     if health is None:
         sys.exit(1)
-    
+
     if json_output:
         import json
+
         print(json.dumps(health, indent=2))
         return
-    
+
     servers = await get_servers_status(api_url)
     print_status_table(health, servers)
 
@@ -695,7 +683,7 @@ def print_diagnostic_detail(backend: dict[str, Any]) -> None:
     is_connected = backend.get("connected", False)
     backend_type = backend.get("type", "unknown")
     tools = backend.get("tools", 0)
-    
+
     print(f"""
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Backend: {name:<64}│
@@ -704,14 +692,14 @@ def print_diagnostic_detail(backend: dict[str, Any]) -> None:
 │  Type:        {backend_type:<58}│
 │  Tools:       {tools:<58}│
 └─────────────────────────────────────────────────────────────────────────────┘""")
-    
+
     if not is_connected:
         diagnostic = backend.get("diagnostic", {})
         error_msg = diagnostic.get("error_message", "Unknown error")
         fix_tip = diagnostic.get("fix_tip", "Check server configuration")
         attempts = diagnostic.get("connection_attempts", 0)
         last_attempt = diagnostic.get("last_attempt")
-        
+
         print(f"""
 ⚠️  DIAGNOSTIC INFORMATION:
 
@@ -740,20 +728,20 @@ async def run_diagnose(api_url: str, backend_name: str | None = None) -> None:
 ║                    MCP Gateway - Diagnostic Tool                             ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
-    
+
     health = await get_health_status(api_url)
-    
+
     if health is None:
         print("❌ Failed to connect to MCP Gateway.")
         print("   Make sure the gateway is running on the specified URL.")
         sys.exit(1)
-    
+
     backends = health.get("backends", [])
-    
+
     if not backends:
         print("📭 No backends configured.")
         return
-    
+
     if backend_name:
         # Diagnose specific backend
         backend = next((b for b in backends if b.get("name") == backend_name), None)
@@ -766,7 +754,7 @@ async def run_diagnose(api_url: str, backend_name: str | None = None) -> None:
     else:
         # Diagnose all backends
         failed_backends = [b for b in backends if not b.get("connected", False)]
-        
+
         if not failed_backends:
             print("✅ All backends are connected and healthy!")
             print()
@@ -776,9 +764,9 @@ async def run_diagnose(api_url: str, backend_name: str | None = None) -> None:
                 tools = backend.get("tools", 0)
                 print(f"   ✅ {name}: {tools} tools available")
             return
-        
+
         print(f"Found {len(failed_backends)} backend(s) with issues:\n")
-        
+
         for backend in failed_backends:
             print_diagnostic_detail(backend)
             print("\n" + "=" * 80 + "\n")

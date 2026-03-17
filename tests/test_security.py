@@ -6,15 +6,13 @@ security-critical scenarios identified in the audit report.
 
 import asyncio
 import time
-from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from mcp_gateway.access_control.manager import AccessControlManager
-from mcp_gateway.circuit_breaker import CircuitBreaker, CircuitState
+from mcp_gateway.circuit_breaker import CircuitBreaker
 from mcp_gateway.services.config_approval_service import (
-    ApprovalResult,
     ConfigApprovalService,
 )
 from mcp_gateway.services.path_security_service import PathSecurityService
@@ -244,9 +242,7 @@ class TestCircuitBreakerStateTransitions:
     @pytest.mark.asyncio
     async def test_open_to_half_open_transition(self):
         """Verify circuit transitions to half-open after recovery timeout."""
-        breaker = CircuitBreaker(
-            "test", failure_threshold=2, recovery_timeout=0.1
-        )
+        breaker = CircuitBreaker("test", failure_threshold=2, recovery_timeout=0.1)
 
         # Open the circuit
         for _ in range(2):

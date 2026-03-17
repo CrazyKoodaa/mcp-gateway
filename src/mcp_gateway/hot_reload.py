@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 try:
     from watchdog.events import FileModifiedEvent, FileSystemEventHandler
     from watchdog.observers import Observer
+
     WATCHDOG_AVAILABLE = True
 except ImportError:
     WATCHDOG_AVAILABLE = False
@@ -50,6 +51,7 @@ class ConfigFileHandler(FileSystemEventHandler if WATCHDOG_AVAILABLE else object
 
         # Debounce rapid changes using time.time() (not asyncio)
         import time
+
         current_time = time.time()
         if current_time - self._last_modified < self._debounce_seconds:
             return
@@ -114,6 +116,7 @@ class ConfigWatcher:
     def disable_reload_temporarily(self) -> None:
         """Disable reloads temporarily (call before saving config)."""
         import time
+
         self._reload_disabled = True
         self._last_save_time = time.time()
 
@@ -124,6 +127,7 @@ class ConfigWatcher:
     def _is_reload_disabled(self) -> bool:
         """Check if reloads should be disabled."""
         import time
+
         if not self._reload_disabled:
             return False
         # Auto-enable after grace period
@@ -174,7 +178,8 @@ class ConfigWatcher:
             if self.config_path.exists():
                 # Use asyncio.to_thread for non-blocking file I/O
                 import aiofiles
-                async with aiofiles.open(self.config_path, encoding='utf-8') as f:
+
+                async with aiofiles.open(self.config_path, encoding="utf-8") as f:
                     content = await f.read()
                     self._last_config = json.loads(content)
                 self._last_mtime = self.config_path.stat().st_mtime
@@ -227,7 +232,8 @@ class ConfigWatcher:
         try:
             # Reload config using non-blocking I/O
             import aiofiles
-            async with aiofiles.open(self.config_path, encoding='utf-8') as f:
+
+            async with aiofiles.open(self.config_path, encoding="utf-8") as f:
                 content = await f.read()
                 new_config = json.loads(content)
 
@@ -266,33 +272,39 @@ class ConfigWatcher:
         # Find added servers
         for name in new_servers:
             if name not in old_servers:
-                changes.append(ConfigChange(
-                    action="added",
-                    server_name=name,
-                    old_config=None,
-                    new_config=new_servers[name],
-                ))
+                changes.append(
+                    ConfigChange(
+                        action="added",
+                        server_name=name,
+                        old_config=None,
+                        new_config=new_servers[name],
+                    )
+                )
 
         # Find removed servers
         for name in old_servers:
             if name not in new_servers:
-                changes.append(ConfigChange(
-                    action="removed",
-                    server_name=name,
-                    old_config=old_servers[name],
-                    new_config=None,
-                ))
+                changes.append(
+                    ConfigChange(
+                        action="removed",
+                        server_name=name,
+                        old_config=old_servers[name],
+                        new_config=None,
+                    )
+                )
 
         # Find modified servers
         for name in new_servers:
             if name in old_servers:
                 if self._configs_differ(old_servers[name], new_servers[name]):
-                    changes.append(ConfigChange(
-                        action="modified",
-                        server_name=name,
-                        old_config=old_servers[name],
-                        new_config=new_servers[name],
-                    ))
+                    changes.append(
+                        ConfigChange(
+                            action="modified",
+                            server_name=name,
+                            old_config=old_servers[name],
+                            new_config=new_servers[name],
+                        )
+                    )
 
         return changes
 
@@ -300,8 +312,14 @@ class ConfigWatcher:
         """Check if two server configs are different."""
         # Compare relevant fields
         fields = [
-            "command", "args", "env", "url", "type",
-            "headers", "disabledTools", "disabled_tools"
+            "command",
+            "args",
+            "env",
+            "url",
+            "type",
+            "headers",
+            "disabledTools",
+            "disabled_tools",
         ]
 
         for field in fields:
@@ -324,6 +342,7 @@ class ConfigWatcher:
             return ()
         if isinstance(args, str):
             import shlex
+
             return tuple(shlex.split(args))
         return tuple(args)
 

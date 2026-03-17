@@ -4,8 +4,8 @@ import asyncio
 import json
 import tempfile
 from pathlib import Path
-from typing import Any, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from mcp.types import CallToolResult, TextContent, Tool
@@ -29,24 +29,21 @@ def sample_config_dict():
             "port": 3000,
             "logLevel": "INFO",
             "enableNamespacing": True,
-            "namespaceSeparator": "__"
+            "namespaceSeparator": "__",
         },
         "mcpServers": {
-            "memory": {
-                "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-memory"]
-            },
+            "memory": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"]},
             "time": {
                 "command": "uvx",
                 "args": ["mcp-server-time"],
-                "disabledTools": ["convert_time"]
+                "disabledTools": ["convert_time"],
             },
             "remote-server": {
                 "type": "streamable-http",
                 "url": "https://example.com/mcp",
-                "headers": {"Authorization": "Bearer token123"}
-            }
-        }
+                "headers": {"Authorization": "Bearer token123"},
+            },
+        },
     }
 
 
@@ -67,20 +64,15 @@ def gateway_config():
         port=3000,
         enable_namespacing=True,
         namespace_separator="__",
-        log_level="INFO"
+        log_level="INFO",
     )
     config.mcp_servers = {
         "memory": ServerConfig(
-            name="memory",
-            command="npx",
-            args=["-y", "@modelcontextprotocol/server-memory"]
+            name="memory", command="npx", args=["-y", "@modelcontextprotocol/server-memory"]
         ),
         "time": ServerConfig(
-            name="time",
-            command="uvx",
-            args=["mcp-server-time"],
-            disabled_tools=["convert_time"]
-        )
+            name="time", command="uvx", args=["mcp-server-time"], disabled_tools=["convert_time"]
+        ),
     }
     return config
 
@@ -91,17 +83,14 @@ def mock_tool():
     return Tool(
         name="test_tool",
         description="A test tool",
-        inputSchema={"type": "object", "properties": {}}
+        inputSchema={"type": "object", "properties": {}},
     )
 
 
 @pytest.fixture
 def mock_tool_result():
     """Return a mock CallToolResult."""
-    return CallToolResult(
-        content=[TextContent(type="text", text="Test result")],
-        isError=False
-    )
+    return CallToolResult(content=[TextContent(type="text", text="Test result")], isError=False)
 
 
 @pytest.fixture
@@ -116,8 +105,8 @@ def mock_client_session():
 
 class MockBackendConnection:
     """Mock BackendConnection for testing."""
-    
-    def __init__(self, name: str, tools: Optional[list] = None, connected: bool = True):
+
+    def __init__(self, name: str, tools: list | None = None, connected: bool = True):
         self.config = MagicMock()
         self.config.name = name
         self.config.transport_type = "stdio"
@@ -125,38 +114,40 @@ class MockBackendConnection:
         self._tools = tools or []
         self._connected = connected
         self.session = AsyncMock() if connected else None
-        
+
     @property
     def name(self) -> str:
         return self._name
-    
+
     @property
     def is_connected(self) -> bool:
         return self._connected
-    
+
     @property
     def tools(self) -> list:
         return self._tools.copy()
-    
+
     async def connect(self) -> None:
         self._connected = True
-    
+
     async def disconnect(self) -> None:
         self._connected = False
         self._tools = []
-    
+
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> CallToolResult:
         return CallToolResult(
             content=[TextContent(type="text", text=f"Result from {self.name}.{tool_name}")],
-            isError=False
+            isError=False,
         )
 
 
 @pytest.fixture
 def mock_backend():
     """Return a MockBackendConnection factory."""
-    def _create(name: str, tools: Optional[list] = None, connected: bool = True):
+
+    def _create(name: str, tools: list | None = None, connected: bool = True):
         return MockBackendConnection(name, tools, connected)
+
     return _create
 
 

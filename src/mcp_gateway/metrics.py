@@ -280,9 +280,7 @@ class MetricsCollector:
         if backend_manager:
             backends = backend_manager.backends
             snapshot.total_backends = len(backends)
-            snapshot.connected_backends = sum(
-                1 for b in backends.values() if b.is_connected
-            )
+            snapshot.connected_backends = sum(1 for b in backends.values() if b.is_connected)
             snapshot.total_tools = len(backend_manager.get_all_tools())
 
             for name, backend in backends.items():
@@ -326,9 +324,7 @@ else:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-        def labels(
-            self, *args: Any, **kwargs: Any
-        ) -> DummyMetricExport:
+        def labels(self, *args: Any, **kwargs: Any) -> DummyMetricExport:
             return self
 
         def inc(self, *args: Any, **kwargs: Any) -> None:
@@ -342,5 +338,6 @@ else:
 
         def info(self, *args: Any, **kwargs: Any) -> None:
             pass
+
 
 _DummyMetric = DummyMetricExport

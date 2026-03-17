@@ -1,4 +1,5 @@
 """HTTP API routes for MCP Gateway server."""
+
 from __future__ import annotations
 
 import asyncio
@@ -22,9 +23,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def setup_http_routes(
-    app: FastAPI, deps: ServerDependencies, enable_access_control: bool
-) -> None:
+def setup_http_routes(app: FastAPI, deps: ServerDependencies, enable_access_control: bool) -> None:
     """Setup all HTTP API routes."""
     _setup_health_routes(app, deps)
     _setup_admin_routes(app, deps)
@@ -158,18 +157,14 @@ def _setup_admin_routes(app: FastAPI, deps: ServerDependencies) -> None:
         """Retro 80s CRT terminal themed dashboard."""
         if not deps.templates:
             raise HTTPException(status_code=500, detail="Templates not available")
-        return deps.templates.TemplateResponse(
-            "retro-dashboard.html", {"request": request}
-        )
+        return deps.templates.TemplateResponse("retro-dashboard.html", {"request": request})
 
     @app.get("/retro-admin", response_class=HTMLResponse, tags=["admin"])
     async def retro_admin(request: Request) -> Response:
         """Retro 80s CRT terminal themed admin panel."""
         if not deps.templates:
             raise HTTPException(status_code=500, detail="Templates not available")
-        return deps.templates.TemplateResponse(
-            "retro-admin.html", {"request": request}
-        )
+        return deps.templates.TemplateResponse("retro-admin.html", {"request": request})
 
 
 def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
@@ -184,9 +179,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
     async def list_servers() -> dict[str, list[dict[str, Any]]]:
         """List all configured MCP servers with connection status and diagnostics."""
         if not deps.config_manager:
-            raise HTTPException(
-                status_code=503, detail="Config management not available"
-            )
+            raise HTTPException(status_code=503, detail="Config management not available")
 
         servers: list[dict[str, Any]] = []
         for name, server in deps.config_manager.gateway_config.servers.items():
@@ -261,17 +254,13 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
     async def update_server(name: str, request: Request) -> dict[str, Any]:
         """Update server configuration with approval flow for sensitive paths."""
         if not deps.config_manager:
-            raise HTTPException(
-                status_code=503, detail="Config management not available"
-            )
+            raise HTTPException(status_code=503, detail="Config management not available")
 
         from ..admin import validate_server_config
         from ..services import ApprovalResult
 
         config: dict[str, Any] = await request.json()
-        logger.info(
-            f"Update server request for '{name}' with args: {config.get('args', [])}"
-        )
+        logger.info(f"Update server request for '{name}' with args: {config.get('args', [])}")
         logger.debug(f"Full config received: {config}")
 
         # Validate
@@ -317,8 +306,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
                     safe_args = [
                         arg
                         for arg in config.get("args", [])
-                        if arg in original_config.get("args", [])
-                        or arg in result.safe_paths
+                        if arg in original_config.get("args", []) or arg in result.safe_paths
                     ]
                     safe_config["args"] = safe_args
                     await deps.config_manager.update_server(name, safe_config)
@@ -334,13 +322,11 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
                     "requires_approval": True,
                     "approval_code": approval_code,
                     "pending_requests": [
-                        {"code": r.code, "path": r.path}
-                        for r in result.pending_requests
+                        {"code": r.code, "path": r.path} for r in result.pending_requests
                     ],
                     "safe_paths_applied": result.safe_paths,
                     "message": (
-                        f"{len(result.pending_requests)} sensitive path(s) "
-                        "require CLI approval"
+                        f"{len(result.pending_requests)} sensitive path(s) require CLI approval"
                     ),
                 }
 
@@ -360,9 +346,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
     async def create_server(request: Request) -> dict[str, Any]:
         """Create a new MCP server configuration and activate it."""
         if not deps.config_manager:
-            raise HTTPException(
-                status_code=503, detail="Config management not available"
-            )
+            raise HTTPException(status_code=503, detail="Config management not available")
 
         from ..admin import validate_server_config
         from ..config import ServerConfig
@@ -381,9 +365,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
 
         # Check if server already exists
         if name in deps.config_manager.gateway_config.servers:
-            raise HTTPException(
-                status_code=409, detail=f"Server '{name}' already exists"
-            )
+            raise HTTPException(status_code=409, detail=f"Server '{name}' already exists")
 
         try:
             # Save configuration
@@ -431,8 +413,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         except Exception as e:
             logger.error(f"Failed to activate new backend '{name}': {e}", exc_info=True)
             raise HTTPException(
-                status_code=500,
-                detail=f"Server created but activation failed: {e}"
+                status_code=500, detail=f"Server created but activation failed: {e}"
             ) from e
 
     @app.delete(
@@ -443,9 +424,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
     async def delete_server(name: str) -> dict[str, Any]:
         """Delete an MCP server configuration."""
         if not deps.config_manager:
-            raise HTTPException(
-                status_code=503, detail="Config management not available"
-            )
+            raise HTTPException(status_code=503, detail="Config management not available")
 
         try:
             await deps.config_manager.remove_server(name)
@@ -461,9 +440,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
     async def reload_config() -> dict[str, Any]:
         """Reload configuration from disk."""
         if not deps.config_manager:
-            raise HTTPException(
-                status_code=503, detail="Config management not available"
-            )
+            raise HTTPException(status_code=503, detail="Config management not available")
 
         try:
             await deps.config_manager.reload()
@@ -519,21 +496,15 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
                     "message": f"Backend '{name}' restarted",
                 }
             else:
-                raise HTTPException(
-                    status_code=500, detail=f"Failed to restart backend '{name}'"
-                )
+                raise HTTPException(status_code=500, detail=f"Failed to restart backend '{name}'")
 
         # Fallback to backend manager
         try:
             if not deps.config_manager:
-                raise HTTPException(
-                    status_code=503, detail="Config management not available"
-                )
+                raise HTTPException(status_code=503, detail="Config management not available")
             server_config = deps.config_manager.gateway_config.servers.get(name)
             if not server_config:
-                raise HTTPException(
-                    status_code=404, detail=f"Server '{name}' not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
             await deps.backend_manager.restart_backend(name, server_config)
             return {"success": True, "message": f"Backend '{name}' restarted"}
         except HTTPException:
@@ -602,9 +573,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
     async def approve_access_request(code: str, request: Request) -> dict[str, Any]:
         """Approve a path access request."""
         if not deps.access_control:
-            raise HTTPException(
-                status_code=503, detail="Access control service not available"
-            )
+            raise HTTPException(status_code=503, detail="Access control service not available")
 
         data: dict[str, Any] = await request.json() if await request.body() else {}
         duration = data.get("duration_minutes", 1)
@@ -626,7 +595,9 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
                 "path": grant.path,
                 "expires_at": grant.expires_at.isoformat(),
                 "duration_minutes": grant.duration_minutes,
-            } if grant else None,
+            }
+            if grant
+            else None,
         }
 
     @app.post(
@@ -637,9 +608,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
     async def deny_access_request(code: str) -> dict[str, Any]:
         """Deny a path access request."""
         if not deps.access_control:
-            raise HTTPException(
-                status_code=503, detail="Access control service not available"
-            )
+            raise HTTPException(status_code=503, detail="Access control service not available")
 
         success, message = await deps.access_control.deny_request(code)
 
@@ -656,9 +625,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
     async def revoke_access_grant(grant_id: str) -> dict[str, Any]:
         """Revoke an active access grant."""
         if not deps.access_control:
-            raise HTTPException(
-                status_code=503, detail="Access control service not available"
-            )
+            raise HTTPException(status_code=503, detail="Access control service not available")
 
         success = await deps.access_control.revoke_grant(grant_id)
 
@@ -751,7 +718,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
 
             try:
                 # Send initial connection event
-                yield b"event: connected\ndata: {\"status\": \"connected\"}\n\n"
+                yield b'event: connected\ndata: {"status": "connected"}\n\n'
 
                 # Stream events
                 while True:
@@ -819,9 +786,7 @@ def _setup_approval_routes(app: FastAPI, deps: ServerDependencies) -> None:
     async def approve_change(code: str, request: Request) -> dict[str, Any]:
         """Approve a config change request."""
         if not deps.config_approval:
-            raise HTTPException(
-                status_code=503, detail="Approval service not available"
-            )
+            raise HTTPException(status_code=503, detail="Approval service not available")
 
         # Rate limit check
         if deps.rate_limiter:
@@ -861,9 +826,7 @@ def _setup_approval_routes(app: FastAPI, deps: ServerDependencies) -> None:
                 await deps.config_manager.save()
 
                 # Restart backend
-                server_cfg = deps.config_manager.gateway_config.servers.get(
-                    grant.server_name
-                )
+                server_cfg = deps.config_manager.gateway_config.servers.get(grant.server_name)
                 if server_cfg:
                     restart_config = ServerConfig(
                         name=grant.server_name,
@@ -873,7 +836,7 @@ def _setup_approval_routes(app: FastAPI, deps: ServerDependencies) -> None:
                         url=server_cfg.url,
                         type=server_cfg.type,
                         headers=server_cfg.headers,
-                  disabled_tools=server_cfg.disabled_tools,
+                        disabled_tools=server_cfg.disabled_tools,
                     )
 
                     # Restart in background to avoid blocking response
@@ -881,9 +844,7 @@ def _setup_approval_routes(app: FastAPI, deps: ServerDependencies) -> None:
                         try:
                             # Add a small delay to let the API response complete first
                             await asyncio.sleep(0.5)
-                            logger.info(
-                                f"Starting restart of backend {grant.server_name}"
-                            )
+                            logger.info(f"Starting restart of backend {grant.server_name}")
                             if deps.supervisor:
                                 await deps.supervisor.restart_backend(
                                     grant.server_name, restart_config
@@ -892,17 +853,11 @@ def _setup_approval_routes(app: FastAPI, deps: ServerDependencies) -> None:
                                 await deps.backend_manager.restart_backend(
                                     grant.server_name, restart_config
                                 )
-                            logger.info(
-                                f"Backend {grant.server_name} restarted successfully"
-                            )
+                            logger.info(f"Backend {grant.server_name} restarted successfully")
                         except asyncio.CancelledError:
-                            logger.debug(
-                                f"Backend restart for {grant.server_name} was cancelled"
-                            )
+                            logger.debug(f"Backend restart for {grant.server_name} was cancelled")
                         except Exception as restart_err:
-                            logger.error(
-                                f"Backend restart failed: {restart_err}", exc_info=True
-                            )
+                            logger.error(f"Backend restart failed: {restart_err}", exc_info=True)
 
                     # Schedule restart without awaiting (don't block response)
                     asyncio.create_task(do_restart())  # type: ignore[misc]
@@ -928,7 +883,7 @@ def _setup_approval_routes(app: FastAPI, deps: ServerDependencies) -> None:
 def _setup_logs_routes(app: FastAPI, deps: ServerDependencies) -> None:
     """Setup logs viewer routes."""
     from pathlib import Path
-    
+
     TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
     @app.get("/logs", response_class=HTMLResponse, tags=["logs"])
@@ -937,8 +892,8 @@ def _setup_logs_routes(app: FastAPI, deps: ServerDependencies) -> None:
         template_path = TEMPLATE_DIR / "logs.html"
         if not template_path.exists():
             raise HTTPException(status_code=404, detail="Logs page not found")
-        
-        with open(template_path, "r", encoding="utf-8") as f:
+
+        with open(template_path, encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
 
     @app.get("/api/logs", tags=["logs"])
@@ -950,56 +905,57 @@ def _setup_logs_routes(app: FastAPI, deps: ServerDependencies) -> None:
         limit: int = 1000,
     ) -> dict[str, Any]:
         """Get application logs with filtering.
-        
+
         Args:
             minutes: Time range in minutes (default: 60)
             level: Filter by log level (debug, info, warning, error)
             service: Filter by service name
             search: Search in log messages
             limit: Maximum number of logs to return
-            
+
         Returns:
             List of log entries with metadata
         """
         import glob
-        import re
         from datetime import datetime, timedelta
-        
+
         # Calculate cutoff time
         cutoff = datetime.now() - timedelta(minutes=minutes)
-        
+
         # Find log files
         log_dir = Path.cwd() / "logs"
         log_files = []
-        
+
         if log_dir.exists():
             # Find all log files
-            log_files = glob.glob(str(log_dir / "*.log")) + \
-                       glob.glob(str(log_dir / "*.json")) + \
-                       glob.glob(str(log_dir / "*.jsonl"))
-        
+            log_files = (
+                glob.glob(str(log_dir / "*.log"))
+                + glob.glob(str(log_dir / "*.json"))
+                + glob.glob(str(log_dir / "*.jsonl"))
+            )
+
         # Also check for structlog output in common locations
         possible_logs = [
             Path.cwd() / "logs" / "mcp-gateway.log",
             Path.cwd() / "logs" / "app.log",
             Path.cwd() / "mcp-gateway.log",
         ]
-        
+
         for log_file in possible_logs:
             if log_file.exists() and str(log_file) not in log_files:
                 log_files.append(str(log_file))
-        
+
         logs = []
-        
+
         # Parse log files
         for log_file in log_files:
             try:
-                with open(log_file, "r", encoding="utf-8") as f:
+                with open(log_file, encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
                         if not line:
                             continue
-                        
+
                         log_entry = _parse_log_line(line)
                         if log_entry:
                             # Check if within time range
@@ -1012,25 +968,31 @@ def _setup_logs_routes(app: FastAPI, deps: ServerDependencies) -> None:
                                         continue
                                 except (ValueError, TypeError):
                                     pass
-                            
+
                             # Apply filters
                             if level and log_entry.get("level", "").lower() != level.lower():
                                 continue
-                            if service and service.lower() not in log_entry.get("service", "").lower():
+                            if (
+                                service
+                                and service.lower() not in log_entry.get("service", "").lower()
+                            ):
                                 continue
-                            if search and search.lower() not in log_entry.get("message", "").lower():
+                            if (
+                                search
+                                and search.lower() not in log_entry.get("message", "").lower()
+                            ):
                                 continue
-                            
+
                             logs.append(log_entry)
-                            
+
                             if len(logs) >= limit:
                                 break
             except Exception as e:
                 logger.debug(f"Error reading log file {log_file}: {e}")
-        
+
         # Sort by timestamp (newest first)
         logs.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
-        
+
         return {
             "logs": logs[:limit],
             "total": len(logs),
@@ -1040,20 +1002,20 @@ def _setup_logs_routes(app: FastAPI, deps: ServerDependencies) -> None:
 
 def _strip_ansi(text: str) -> str:
     """Strip ANSI escape codes from text."""
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-    return ansi_escape.sub('', text)
+    ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+    return ansi_escape.sub("", text)
 
 
 def _parse_log_line(line: str) -> dict[str, Any] | None:
     """Parse a log line into structured format.
-    
+
     Handles both JSON and plain text log formats, including ANSI escape codes.
     """
     import json as json_module
-    
+
     # Strip ANSI escape codes for parsing
     clean_line = _strip_ansi(line)
-    
+
     # Try JSON format first
     if clean_line.startswith("{"):
         try:
@@ -1067,10 +1029,14 @@ def _parse_log_line(line: str) -> dict[str, Any] | None:
             }
         except json_module.JSONDecodeError:
             pass
-    
+
     # Try structured log format: timestamp [level] message (with ANSI)
     # Pattern: ISO timestamp followed by [level] with optional ANSI codes
-    text_pattern = r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.\d]*(?:Z|[+-]\d{2}:\d{2})?)\s+(?:\x1B\[[0-;]*m)?\[?(\w+)\]?(?:\x1B\[[0-9]*m)?\s+(.*)"
+    text_pattern = (
+        r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.\d]*"
+        r"(?:Z|[+-]\d{2}:\d{2})?)\s+(?:\x1B\[[0-;]*m)?"
+        r"\[?(\w+)\]?(?:\x1B\[[0-9]*m)?\s+(.*)"
+    )
     match = re.match(text_pattern, line)
     if match:
         return {
@@ -1080,9 +1046,12 @@ def _parse_log_line(line: str) -> dict[str, Any] | None:
             "service": "mcp-gateway",
             "raw": clean_line,
         }
-    
+
     # Try simple format with clean line
-    text_pattern_clean = r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.\d]*(?:Z|[+-]\d{2}:\d{2})?)\s+\[?(\w+)\]?\s+(.*)"
+    text_pattern_clean = (
+        r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.\d]*"
+        r"(?:Z|[+-]\d{2}:\d{2})?)\s+\[?(\w+)\]?\s+(.*)"
+    )
     match = re.match(text_pattern_clean, clean_line)
     if match:
         return {
@@ -1092,7 +1061,7 @@ def _parse_log_line(line: str) -> dict[str, Any] | None:
             "service": "mcp-gateway",
             "raw": clean_line,
         }
-    
+
     # Fallback: return as-is (cleaned)
     return {
         "timestamp": None,

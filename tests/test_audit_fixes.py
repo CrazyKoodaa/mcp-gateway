@@ -1,10 +1,11 @@
 """Tests for audit fixes - P0 critical bugs."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
 from src.mcp_gateway.access_control.models import (
-    ConfigChangeRequest,
     AccessRequest,
     AccessRequestStatus,
+    ConfigChangeRequest,
 )
 
 
@@ -19,8 +20,8 @@ class TestAttributeAccessBugFix:
             change_type="add",
             code="ABCD-1234",
             status=AccessRequestStatus.PENDING,
-            created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+            created_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) + timedelta(minutes=10),
             sensitive_path="/safe/path",
         )
 
@@ -40,8 +41,8 @@ class TestAttributeAccessBugFix:
             path="/some/path",
             code="EFGH-5678",
             status=AccessRequestStatus.PENDING,
-            created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+            created_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) + timedelta(minutes=10),
         )
 
         # Should have path
@@ -64,8 +65,8 @@ class TestCleanupLoopTypeFix:
             path="/some/path",
             code="ABCD-1234",
             status=AccessRequestStatus.PENDING,
-            created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),  # Expired
+            created_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) - timedelta(minutes=1),  # Expired
         )
 
         # Verify correct attributes are accessible
@@ -85,8 +86,8 @@ class TestCleanupLoopTypeFix:
             change_type="add",
             code="EFGH-5678",
             status=AccessRequestStatus.PENDING,
-            created_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),  # Expired
+            created_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) - timedelta(minutes=1),  # Expired
             sensitive_path="/safe/path",
         )
 

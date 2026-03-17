@@ -83,4 +83,5 @@ class ServerDependencies:
         """Initialize default circuit breaker registry if not provided."""
         if self.circuit_breaker_registry is None:
             from ..circuit_breaker import CircuitBreakerRegistry
+
             self.circuit_breaker_registry = CircuitBreakerRegistry()

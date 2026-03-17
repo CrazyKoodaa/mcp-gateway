@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class ApprovalStatus(Enum):
     """Status of a config change approval request."""
+
     PENDING = "pending"
     APPROVED = "approved"
     DENIED = "denied"
@@ -38,6 +39,7 @@ class PendingRequestInfo:
         code: The approval code (e.g., "ABCD-1234")
         path: The specific sensitive path requiring approval
     """
+
     code: str
     path: str
 
@@ -52,6 +54,7 @@ class ApprovalResult:
         safe_paths: List of safe paths that were applied immediately
         error: Error message if validation failed
     """
+
     requires_approval: bool
     pending_requests: list[PendingRequestInfo] = field(default_factory=list)
     safe_paths: list[str] = field(default_factory=list)
@@ -64,6 +67,7 @@ class ConfigChangeRequest:
 
     Each sensitive path gets its own request for granular approval.
     """
+
     id: str
     server_name: str
     change_type: str
@@ -82,6 +86,7 @@ class ConfigChangeRequest:
 @dataclass
 class ConfigChangeGrant:
     """An approved time-bound config change."""
+
     id: str
     request_id: str
     server_name: str
@@ -233,9 +238,7 @@ class ConfigApprovalService:
     ) -> ApprovalResult:
         """Check if a config change requires approval."""
         self._ensure_cleanup_started()
-        logger.info(
-            f"[APPROVAL] Checking config change for server '{server_name}': {change_type}"
-        )
+        logger.info(f"[APPROVAL] Checking config change for server '{server_name}': {change_type}")
 
         """Check if a config change requires approval.
 
@@ -307,8 +310,7 @@ class ConfigApprovalService:
                     code=self._generate_code(),
                     status=ApprovalStatus.PENDING,
                     created_at=datetime.now(UTC),
-                    expires_at=datetime.now(UTC)
-                    + timedelta(minutes=self._request_timeout_minutes),
+                    expires_at=datetime.now(UTC) + timedelta(minutes=self._request_timeout_minutes),
                     sensitive_path=path,
                     path_index=path_index,
                     target_args=new_args,
@@ -333,9 +335,7 @@ class ConfigApprovalService:
             safe_paths=safe_paths,
         )
 
-    def _find_existing_request(
-        self, server_name: str, path: str
-    ) -> ConfigChangeRequest | None:
+    def _find_existing_request(self, server_name: str, path: str) -> ConfigChangeRequest | None:
         """Find existing pending request for server/path combination."""
         for req in self._pending.values():
             if (
@@ -399,8 +399,7 @@ class ConfigApprovalService:
             request_id=request.id,
             server_name=request.server_name,
             granted_at=datetime.now(UTC),
-            expires_at=datetime.now(UTC)
-            + timedelta(minutes=duration_minutes),
+            expires_at=datetime.now(UTC) + timedelta(minutes=duration_minutes),
             duration_minutes=duration_minutes,
             approved_by=approved_by,
             sensitive_path=request.sensitive_path,
@@ -450,9 +449,7 @@ class ConfigApprovalService:
         # Trigger revert
         if self._revert_callback:
             try:
-                await self._revert_callback(
-                    grant.server_name, {"args": grant.original_args}
-                )
+                await self._revert_callback(grant.server_name, {"args": grant.original_args})
             except Exception as e:
                 return False, f"Failed to revert: {e}"
 
@@ -504,6 +501,7 @@ class ConfigApprovalService:
                 break
             except Exception as e:
                 import logging
+
                 logging.getLogger(__name__).error(f"Cleanup error: {e}")
 
     async def _cleanup_expired(self) -> None:
@@ -521,9 +519,7 @@ class ConfigApprovalService:
 
         # Handle expired grants
         expired_grants = [
-            grant_id
-            for grant_id, grant in self._grants.items()
-            if grant.expires_at < now
+            grant_id for grant_id, grant in self._grants.items() if grant.expires_at < now
         ]
         for grant_id in expired_grants:
             grant = self._grants[grant_id]
@@ -531,11 +527,10 @@ class ConfigApprovalService:
             # Revert config
             if self._revert_callback:
                 try:
-                    await self._revert_callback(
-                        grant.server_name, {"args": grant.original_args}
-                    )
+                    await self._revert_callback(grant.server_name, {"args": grant.original_args})
                 except Exception as e:
                     import logging
+
                     logging.getLogger(__name__).error(f"Revert failed: {e}")
 
             # Restart backend
@@ -548,6 +543,7 @@ class ConfigApprovalService:
                     )
                 except Exception as e:
                     import logging
+
                     logging.getLogger(__name__).error(f"Restart failed: {e}")
 
             # Audit log
