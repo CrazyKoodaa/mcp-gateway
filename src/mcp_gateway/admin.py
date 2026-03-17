@@ -106,6 +106,8 @@ class ConfigManager:
             data["headers"] = server.headers
         if server.disabled_tools is not None:
             data["disabledTools"] = server.disabled_tools
+        if server.enabled is not None and server.enabled is False:
+            data["enabled"] = False
 
         return data
 
@@ -177,6 +179,7 @@ class ConfigManager:
             type=config.get("type"),
             headers=config.get("headers", {}),
             disabled_tools=disabled if isinstance(disabled, list) else [],
+            enabled=config.get("enabled", True),
         )
 
 

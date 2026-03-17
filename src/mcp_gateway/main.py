@@ -140,9 +140,18 @@ async def create_dependencies(
         namespace_separator=config.namespace_separator,
     )
 
-    # Connect to all backends
+    # Filter out disabled servers
+    enabled_servers = {
+        name: srv for name, srv in config.servers.items() 
+        if srv.enabled is not False
+    }
+    disabled_count = len(config.servers) - len(enabled_servers)
+    if disabled_count > 0:
+        logger.info(f"Skipping {disabled_count} disabled server(s)")
+
+    # Connect to all enabled backends
     try:
-        await backend_manager.connect_all(config.servers)
+        await backend_manager.connect_all(enabled_servers)
     except Exception as e:
         logger.error("Failed to initialize backends", error=str(e))
         raise
@@ -162,7 +171,7 @@ async def create_dependencies(
             max_consecutive_crashes=5,
         )
         supervisor = ProcessSupervisor(backend_manager, supervision_config)
-        await supervisor.start_supervision(config.servers)
+        await supervisor.start_supervision(enabled_servers)
 
     # Initialize audit service with file handler if enabled
     audit_handlers = []
@@ -308,17 +317,26 @@ async def main_async() -> int:
             # Update backend manager with new separator
             deps.backend_manager._namespace_separator = new_config.namespace_separator
 
-            # Reconnect with new config
-            await deps.backend_manager.connect_all(new_config.servers)
+            # Filter out disabled servers
+            enabled_servers = {
+                name: srv for name, srv in new_config.servers.items()
+                if srv.enabled is not False
+            }
+            disabled_count = len(new_config.servers) - len(enabled_servers)
+            if disabled_count > 0:
+                logger.info(f"Skipping {disabled_count} disabled server(s) on reload")
+
+            # Reconnect with new config (only enabled servers)
+            await deps.backend_manager.connect_all(enabled_servers)
 
             # Restart supervision
             if deps.supervisor and not args.no_supervision:
-                await deps.supervisor.start_supervision(new_config.servers)
+                await deps.supervisor.start_supervision(enabled_servers)
 
             # Update metrics
             logger.info(
                 "Hot reload complete",
-                backends=len(new_config.servers),
+                backends=len(enabled_servers),
                 tools=len(deps.backend_manager.get_all_tools()),
             )
 

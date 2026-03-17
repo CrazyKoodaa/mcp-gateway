@@ -76,6 +76,12 @@ class ServerConfig(BaseModel):
         description="List of tool names to disable"
     )
 
+    # Server enable/disable
+    enabled: bool = Field(
+        default=True,
+        description="Whether this server is enabled"
+    )
+
     @field_validator("args", mode="before")
     @classmethod
     def parse_args(cls, v: Any) -> list[str]:
@@ -478,6 +484,10 @@ def load_config(path: str | Path) -> GatewayConfig:
                 server_copy["disabled_tools"] = server_copy.pop("disabledTools")
             if "disabled_tools" not in server_copy:
                 server_copy["disabled_tools"] = []
+            
+            # Handle enabled field (default to True if not specified)
+            if "enabled" not in server_copy:
+                server_copy["enabled"] = True
 
             servers[name] = server_copy
         config_data["mcp_servers"] = servers
@@ -549,6 +559,8 @@ def save_config(config: GatewayConfig, path: str | Path) -> None:
             server_output["headers"] = server["headers"]
         if server.get("disabled_tools"):
             server_output["disabledTools"] = server["disabled_tools"]
+        if server.get("enabled") is not None and server.get("enabled") is False:
+            server_output["enabled"] = False
 
         output["mcpServers"][name] = server_output
 

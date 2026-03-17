@@ -197,6 +197,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
                 "url": server.url,
                 "type": server.type,
                 "disabledTools": server.disabled_tools,
+                "enabled": server.enabled,
                 "availableTools": available_tools,
                 "connectionStatus": "unknown",
             }
@@ -396,16 +397,21 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
                 type=config.get("type"),
                 headers=config.get("headers", {}),
                 disabled_tools=config.get("disabledTools", []),
+                enabled=config.get("enabled", True),
             )
 
-            # Connect the new backend
-            logger.info(f"Connecting to new backend: {name}")
-            await deps.backend_manager.add_backend(server_config)
+            # Only connect if server is enabled
+            if server_config.enabled:
+                # Connect the new backend
+                logger.info(f"Connecting to new backend: {name}")
+                await deps.backend_manager.add_backend(server_config)
 
-            # Add to process supervisor if enabled
-            if deps.supervisor:
-                logger.info(f"Adding {name} to process supervision")
-                await deps.supervisor.start_supervision({name: server_config})
+                # Add to process supervisor if enabled
+                if deps.supervisor:
+                    logger.info(f"Adding {name} to process supervision")
+                    await deps.supervisor.start_supervision({name: server_config})
+            else:
+                logger.info(f"Server '{name}' is disabled, skipping connection")
 
             # Update config in memory
             if deps.config_manager:

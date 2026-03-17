@@ -229,6 +229,18 @@
             font-size: 0.75rem;
             margin-right: 4px;
             margin-bottom: 4px;
+            transition: all 0.2s;
+        }
+
+        .tool-tag.disabled {
+            background: #1e293b;
+            color: #64748b;
+            text-decoration: line-through;
+            opacity: 0.5;
+        }
+
+        .tool-tag:hover {
+            background: #475569;
         }
         
         .empty-state {
@@ -480,29 +492,30 @@
         // Update tools list
         function updateTools(backends) {
             console.log('[Dashboard] updateTools called with:', backends);
-            
+
             const allBackends = backends.backends || [];
             console.log(`[Dashboard] Processing ${allBackends.length} backends for tools display`);
-            
+
             if (allBackends.length === 0) {
                 els.toolsContainer.innerHTML = '<div class="empty-state">No backends connected</div>';
                 return;
             }
-            
+
             // Check if any backend has tools
             const totalTools = allBackends.reduce((sum, b) => sum + (b.tools_list?.length || 0), 0);
             console.log(`[Dashboard] Total tools across all backends: ${totalTools}`);
-            
+
             if (totalTools === 0) {
                 els.toolsContainer.innerHTML = '<div class="empty-state">No tools available. Backends may still be initializing...</div>';
                 return;
             }
-            
+
             // Group tools by backend
             const html = allBackends.map(backend => {
                 const tools = backend.tools_list || [];
-                console.log(`[Dashboard] Backend ${backend.name} has ${tools.length} tools`);
-                
+                const disabledTools = backend.disabled_tools || [];
+                console.log(`[Dashboard] Backend ${backend.name} has ${tools.length} tools, ${disabledTools.length} disabled`);
+
                 if (tools.length === 0) {
                     return `
                         <div style="margin-bottom: 20px;">
@@ -513,23 +526,24 @@
                         </div>
                     `;
                 }
-                
+
                 return `
                     <div style="margin-bottom: 20px;">
                         <h3 style="color: #94a3b8; font-size: 0.875rem; margin-bottom: 8px;">
-                            ${escapeHtml(backend.name)} (${tools.length} tools)
+                            ${escapeHtml(backend.name)} (${tools.length - disabledTools.length} enabled, ${disabledTools.length} disabled)
                         </h3>
                         <div>
                             ${tools.map(tool => {
                                 const toolName = typeof tool === 'object' ? tool.name : tool;
                                 const toolDesc = typeof tool === 'object' ? tool.description : '';
-                                return `<span class="tool-tag" title="${escapeHtml(toolDesc)}">${escapeHtml(toolName)}</span>`;
+                                const isDisabled = disabledTools.includes(toolName);
+                                return `<span class="tool-tag${isDisabled ? ' disabled' : ''}" title="${escapeHtml(toolDesc)}${isDisabled ? ' (disabled)' : ''}">${escapeHtml(toolName)}</span>`;
                             }).join('')}
                         </div>
                     </div>
                 `;
             }).join('');
-            
+
             els.toolsContainer.innerHTML = html;
         }
         
@@ -603,10 +617,10 @@
                             console.log(`[Dashboard] Fetching tools from: ${toolsUrl}`);
                             const toolsRes = await apiGet(toolsUrl);
                             console.log(`[Dashboard] Tools for ${backend.name}:`, toolsRes);
-                            return { ...backend, tools_list: toolsRes.tools || [] };
+                            return { ...backend, tools_list: toolsRes.tools || [], disabled_tools: toolsRes.disabledTools || [] };
                         } catch (err) {
                             console.error(`[Dashboard] Failed to fetch tools for ${backend.name}:`, err);
-                            return { ...backend, tools_list: [] };
+                            return { ...backend, tools_list: [], disabled_tools: [] };
                         }
                     })
                 );

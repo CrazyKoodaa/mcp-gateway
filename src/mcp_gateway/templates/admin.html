@@ -496,18 +496,28 @@
             .form-row {
                 grid-template-columns: 1fr;
             }
-            
+
             .actions {
                 flex-direction: column;
             }
-            
+
             .tool-item {
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 10px;
             }
         }
-        
+
+        /* Disabled server row styling */
+        tr.server-disabled {
+            opacity: 0.5;
+            background: rgba(30, 41, 59, 0.5);
+        }
+
+        tr.server-disabled td {
+            color: #64748b;
+        }
+
         /* Access Control Styles */
         .status-badge {
             padding: 4px 12px;
@@ -692,12 +702,13 @@
                         <th>Type</th>
                         <th>Command/URL</th>
                         <th>Tools</th>
+                        <th>Enabled</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="servers-tbody">
                     <tr>
-                        <td colspan="5" style="text-align: center; padding: 40px; color: #64748b;">Loading...</td>
+                        <td colspan="6" style="text-align: center; padding: 40px; color: #64748b;">Loading...</td>
                     </tr>
                 </tbody>
             </table>
@@ -987,11 +998,12 @@
                 const typeLabel = isRemote ? (server.type || 'remote') : 'stdio';
                 const toolCount = (server.availableTools || []).length;
                 const disabledCount = (server.disabledTools || []).length;
-                
+                const isEnabled = server.enabled !== false; // Default to true if not set
+
                 // Determine connection status
                 const isConnected = server.connectionStatus === 'connected' || toolCount > 0;
                 const hasError = server.connectionStatus === 'error' || server.diagnostic;
-                
+
                 // Status indicator
                 let statusIndicator = '';
                 if (isConnected) {
@@ -1001,13 +1013,13 @@
                 } else {
                     statusIndicator = '<span style="color: #64748b;">●</span>';
                 }
-                
+
                 // Diagnostic info row (if error)
                 let diagnosticRow = '';
                 if (hasError && server.diagnostic) {
                     diagnosticRow = `
                         <tr class="diagnostic-row" style="background: rgba(239, 68, 68, 0.05);">
-                            <td colspan="5" style="padding: 12px 20px; border-top: none;">
+                            <td colspan="6" style="padding: 12px 20px; border-top: none;">
                                 <div style="display: flex; align-items: flex-start; gap: 12px;">
                                     <span style="color: #ef4444; font-size: 1.2rem;">⚠️</span>
                                     <div style="flex: 1;">
@@ -1025,17 +1037,23 @@
                         </tr>
                     `;
                 }
-                
+
                 return `
-                    <tr class="${hasError ? 'has-error' : ''}">
+                    <tr class="${hasError ? 'has-error' : ''} ${!isEnabled ? 'server-disabled' : ''}">
                         <td>${statusIndicator} <strong>${escapeHtml(server.name)}</strong></td>
                         <td><span style="background: #334155; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;">${typeLabel}</span></td>
                         <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(displayValue)}</td>
                         <td>
-                            ${toolCount > 0 
+                            ${toolCount > 0
                                 ? `<span style="color: #22c55e;">${toolCount - disabledCount} enabled</span>${disabledCount > 0 ? ` <span style="color: #64748b;">(${disabledCount} disabled)</span>` : ''}`
                                 : (hasError ? '<span style="color: #ef4444;">Failed</span>' : '<span style="color: #64748b;">-</span>')
                             }
+                        </td>
+                        <td>
+                            <label class="toggle-switch">
+                                <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleServer('${escapeHtml(server.name)}', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
                         </td>
                         <td>
                             <div class="actions">
@@ -1592,7 +1610,39 @@
                 showModalError(error.message);
             }
         }
-        
+
+        // Toggle server enabled/disabled
+        async function toggleServer(name, enabled) {
+            try {
+                // Get current server config
+                const server = servers.find(s => s.name === name);
+                if (!server) throw new Error(`Server '${name}' not found`);
+
+                // Update the enabled status
+                const config = {
+                    command: server.command,
+                    args: server.args || [],
+                    env: server.env || {},
+                    url: server.url,
+                    type: server.type,
+                    headers: server.headers || {},
+                    disabledTools: server.disabledTools || [],
+                    enabled: enabled,
+                };
+
+                await apiPut(`/api/servers/${encodeURIComponent(name)}`, config);
+                showMessage(`Server '${name}' ${enabled ? 'enabled' : 'disabled'}`);
+                
+                // Reload servers to show updated state
+                loadServers();
+                
+                // Trigger hot reload to apply changes
+                setTimeout(() => triggerReload(), 500);
+            } catch (error) {
+                showMessage(`Failed to toggle server: ${error.message}`, true);
+            }
+        }
+
         // Delete server
         async function deleteServer(name) {
             if (!confirm(`Are you sure you want to delete '${name}'?`)) return;
