@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from fastapi.templating import Jinja2Templates
 
 if TYPE_CHECKING:
+    from ..access_control import AccessControlManager
     from ..admin import ConfigManager
     from ..auth import AuthMiddleware
     from ..backends import BackendManager
@@ -20,9 +21,9 @@ if TYPE_CHECKING:
     from ..config import GatewayConfig
     from ..metrics import MetricsCollector
     from ..rate_limiter import MemoryRateLimiter
-    from ..access_control import AccessControlManager
     from ..services import AuditService, ConfigApprovalService, PathSecurityService
     from ..supervisor import ProcessSupervisor
+    from .mcp_handlers import MCPHandlers
 
 
 # Template and static directories
@@ -58,6 +59,7 @@ class ServerDependencies:
         metrics: Optional metrics collector
         auth: Optional auth middleware
         templates: Optional Jinja2 templates
+        mcp_handlers: Optional MCP protocol handlers for tool sync
     """
 
     config: GatewayConfig
@@ -75,6 +77,7 @@ class ServerDependencies:
     metrics: MetricsCollector | None = None
     auth: AuthMiddleware | None = None
     templates: Jinja2Templates | None = None
+    mcp_handlers: MCPHandlers | None = None
 
     def __post_init__(self) -> None:
         """Initialize default circuit breaker registry if not provided."""

@@ -64,6 +64,9 @@ class McpGatewayServer:
         # Setup MCP protocol handlers
         self.mcp_handlers = setup_mcp_handlers(self.app, self.deps)
 
+        # Store mcp_handlers in deps for runtime access (e.g., adding new servers)
+        self.deps.mcp_handlers = self.mcp_handlers
+
         return self.app
 
     @property

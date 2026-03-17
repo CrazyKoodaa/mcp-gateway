@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 
+from ..config import load_config
 from .models import CircuitBreakerStats, HealthCheckResponse, ServerConfigResponse
 
 if TYPE_CHECKING:
@@ -44,14 +45,14 @@ def _setup_health_routes(app: FastAPI, deps: ServerDependencies) -> None:
     async def health_check() -> dict[str, Any]:
         """Health check endpoint with diagnostic information."""
         backends: list[dict[str, object]] = []
-        
+
         # Get diagnostic info for all backends (connected and failed)
         all_backends = deps.backend_manager.get_backend_diagnostics()
-        
+
         for backend_diag in all_backends:
             name = str(backend_diag["name"])
             is_connected = bool(backend_diag["connected"])
-            
+
             cb_stats: dict[str, object] = {"state": "CLOSED"}
             if deps.circuit_breaker_registry:
                 cb = deps.circuit_breaker_registry.get(name)
@@ -72,7 +73,7 @@ def _setup_health_routes(app: FastAPI, deps: ServerDependencies) -> None:
                 "circuit_breaker_state": cb_stats.get("state", "CLOSED"),
                 "status": "connected" if is_connected else "error",
             }
-            
+
             # Add diagnostic info for failed backends
             if not is_connected and backend_diag.get("diagnostic"):
                 diag = backend_diag["diagnostic"]
@@ -82,14 +83,14 @@ def _setup_health_routes(app: FastAPI, deps: ServerDependencies) -> None:
                     "connection_attempts": backend_diag.get("connection_attempts", 0),
                     "last_attempt": diag.get("last_attempt"),
                 }
-            
+
             backends.append(backend_info)
 
         connected_count = sum(1 for b in backends if b["connected"])
-        
+
         # Gateway is healthy if at least one backend is connected OR no backends configured
         is_healthy = connected_count > 0 or len(backends) == 0
-        
+
         return {
             "status": "healthy" if is_healthy else "degraded",
             "healthy": is_healthy,
@@ -199,7 +200,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
                 "availableTools": available_tools,
                 "connectionStatus": "unknown",
             }
-            
+
             if backend:
                 if backend.is_connected:
                     available_tools = [tool.name for tool in backend.tools]
@@ -214,7 +215,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
                             "fixTip": backend.diagnostic_tip,
                             "attempts": backend.connection_attempts,
                         }
-            
+
             servers.append(server_info)
 
         return {"servers": servers}
@@ -354,13 +355,14 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         summary="Create new server",
     )
     async def create_server(request: Request) -> dict[str, Any]:
-        """Create a new MCP server configuration."""
+        """Create a new MCP server configuration and activate it."""
         if not deps.config_manager:
             raise HTTPException(
                 status_code=503, detail="Config management not available"
             )
 
         from ..admin import validate_server_config
+        from ..config import ServerConfig
 
         data: dict[str, Any] = await request.json()
         name = data.get("name")
@@ -381,10 +383,49 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
             )
 
         try:
+            # Save configuration
             await deps.config_manager.add_server(str(name), config)
+
+            # Create ServerConfig for backend connection
+            server_config = ServerConfig(
+                name=name,
+                command=config.get("command"),
+                args=config.get("args", []),
+                env=config.get("env", {}),
+                url=config.get("url"),
+                type=config.get("type"),
+                headers=config.get("headers", {}),
+                disabled_tools=config.get("disabledTools", []),
+            )
+
+            # Connect the new backend
+            logger.info(f"Connecting to new backend: {name}")
+            await deps.backend_manager.add_backend(server_config)
+
+            # Add to process supervisor if enabled
+            if deps.supervisor:
+                logger.info(f"Adding {name} to process supervision")
+                await deps.supervisor.start_supervision({name: server_config})
+
+            # Update config in memory
+            if deps.config_manager:
+                deps.config_manager.gateway_config = load_config(deps.config_manager.config_path)
+
+            # Sync tools to MCP server
+            if deps.mcp_handlers:
+                deps.mcp_handlers.sync_tools()
+
+            logger.info(f"New backend '{name}' activated successfully")
+
             return {"success": True, "server": {"name": name}}
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Failed to activate new backend '{name}': {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Server created but activation failed: {e}"
+            ) from e
 
     @app.delete(
         "/api/servers/{name}",
@@ -502,7 +543,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         """List pending path access requests."""
         if not deps.access_control:
             return {"requests": []}
-        
+
         requests = deps.access_control.get_pending_requests()
         return {
             "requests": [
@@ -528,7 +569,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         """List active path access grants."""
         if not deps.access_control:
             return {"grants": []}
-        
+
         grants = await deps.access_control.get_active_grants()
         return {
             "grants": [
@@ -556,18 +597,18 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
             raise HTTPException(
                 status_code=503, detail="Access control service not available"
             )
-        
+
         data: dict[str, Any] = await request.json() if await request.body() else {}
         duration = data.get("duration_minutes", 1)
-        
+
         success, message, grant = await deps.access_control.approve_request(
             code=code,
             duration_minutes=int(duration),
         )
-        
+
         if not success:
             raise HTTPException(status_code=400, detail=message)
-        
+
         return {
             "success": True,
             "message": message,
@@ -591,12 +632,12 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
             raise HTTPException(
                 status_code=503, detail="Access control service not available"
             )
-        
+
         success, message = await deps.access_control.deny_request(code)
-        
+
         if not success:
             raise HTTPException(status_code=400, detail=message)
-        
+
         return {"success": True, "message": message}
 
     @app.delete(
@@ -610,12 +651,12 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
             raise HTTPException(
                 status_code=503, detail="Access control service not available"
             )
-        
+
         success = await deps.access_control.revoke_grant(grant_id)
-        
+
         if not success:
             raise HTTPException(status_code=404, detail="Grant not found")
-        
+
         return {"success": True, "message": "Grant revoked successfully"}
 
     # Config Change Routes (via access_control)
@@ -628,7 +669,7 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         """List active config change grants."""
         if not deps.access_control:
             return {"grants": []}
-        
+
         grants = deps.access_control.get_active_config_grants()
         return {
             "grants": [
@@ -654,12 +695,12 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         """Deny a config change request."""
         if not deps.access_control:
             raise HTTPException(status_code=503, detail="Access control service not available")
-        
+
         success, message = await deps.access_control.deny_config_change(code)
-        
+
         if not success:
             raise HTTPException(status_code=400, detail=message)
-        
+
         return {"success": True, "message": message}
 
     @app.delete(
@@ -671,19 +712,19 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
         """Revoke an active config change grant."""
         if not deps.access_control:
             raise HTTPException(status_code=503, detail="Access control service not available")
-        
+
         success, message = await deps.access_control.revert_config_change(grant_id)
-        
+
         if not success:
             raise HTTPException(status_code=404, detail=message)
-        
+
         return {"success": True, "message": message}
 
     # SSE Events endpoint for real-time access control notifications
     @app.get("/api/access/events")
     async def access_events_sse(request: Request) -> Response:
         """SSE endpoint for access control events."""
-        
+
         async def event_stream() -> Any:  # type: ignore[return-value]
             if not deps.access_control:
                 # No access control service - send keepalive only
@@ -691,26 +732,26 @@ def _setup_server_routes(app: FastAPI, deps: ServerDependencies) -> None:
                     await asyncio.sleep(30)
                     yield b"event: keepalive\ndata: {}\n\n"
                 return
-            
+
             # Subscribe to notifications
             queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-            
+
             async def notification_handler(event_type: str, data: dict[str, Any]) -> None:
                 await queue.put({"type": event_type, "data": data})
-            
+
             deps.access_control.register_notification_callback(notification_handler)
-            
+
             try:
                 # Send initial connection event
                 yield b"event: connected\ndata: {\"status\": \"connected\"}\n\n"
-                
+
                 # Stream events
                 while True:
                     try:
                         event = await asyncio.wait_for(queue.get(), timeout=30)
                         event_json = json.dumps(event)
                         yield f"event: access_control\ndata: {event_json}\n\n".encode()
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         # Send keepalive
                         yield b"event: keepalive\ndata: {}\n\n"
             finally:
